@@ -118,16 +118,42 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(150),
+          preferredSize: const Size.fromHeight(115),
           child: Column(
-            children: [
-              // Stats card
-              _buildStatsCard(stats),
-              const SizedBox(height: 8),
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // Compact stats - single row
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    _buildCompactStat(
+                      '${stats.unlocked}/${stats.total}',
+                      'Unlocked',
+                    ),
+                    Container(width: 1, height: 20, color: Colors.white24),
+                    _buildCompactStat(
+                      '${stats.points}',
+                      'Points',
+                    ),
+                    Container(width: 1, height: 20, color: Colors.white24),
+                    _buildCompactStat(
+                      '${(stats.unlocked / stats.total * 100).toStringAsFixed(0)}%',
+                      'Complete',
+                    ),
+                  ],
+                ),
+              ),
 
-              // Search bar
-              _buildSearchBar(),
-              const SizedBox(height: 8),
+              // Search bar - more compact
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: SizedBox(
+                  height: 40,
+                  child: _buildSearchBar(),
+                ),
+              ),
 
               // Category tabs
               TabBar(
@@ -247,6 +273,31 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
           style: TextStyle(
             fontSize: 11,
             color: Colors.white.withOpacity(0.8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Build compact stat for inline display
+  Widget _buildCompactStat(String value, String label) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.white.withOpacity(0.7),
           ),
         ),
       ],

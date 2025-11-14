@@ -50,6 +50,12 @@ class _GameScreenState extends ConsumerState<GameScreen>
   /// Animation coordinator for pour animations
   late PourAnimator _animator;
 
+  /// Flag to track if we've shown the game over dialog
+  bool _hasShownGameOverDialog = false;
+
+  /// Track previous game over state to detect changes
+  bool _previousGameOverState = false;
+
   @override
   void initState() {
     super.initState();
@@ -210,6 +216,8 @@ class _GameScreenState extends ConsumerState<GameScreen>
               controller.reset();
               setState(() {
                 _selectedContainerId = null;
+                _hasShownGameOverDialog = false; // Reset flag
+                _previousGameOverState = false; // Reset tracking
               });
             },
             child: const Text('Reset'),
@@ -219,9 +227,47 @@ class _GameScreenState extends ConsumerState<GameScreen>
     );
   }
 
-  /// Handle hint button (placeholder)
+  /// Handle hint button
   void _onHint() {
-    _showMessage('Hint system coming soon!');
+    final gameState = ref.read(gameProvider);
+
+    // Don't allow hints if game is over
+    if (gameState.isGameOver) {
+      _showMessage('Game is already over!');
+      return;
+    }
+
+    // Find first valid move as a simple hint
+    for (final from in gameState.containers) {
+      if (from.isEmpty) continue;
+
+      for (final to in gameState.containers) {
+        if (from.id == to.id) continue;
+
+        // Check if this is a valid move
+        if (to.isEmpty || (!to.isFull && to.topColor == from.topColor)) {
+          // Show hint
+          _showMessage('Try moving from ${from.id} to ${to.id}');
+
+          // Highlight the source container
+          setState(() {
+            _selectedContainerId = from.id;
+          });
+
+          // Clear selection after 2 seconds
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) {
+              setState(() {
+                _selectedContainerId = null;
+              });
+            }
+          });
+          return;
+        }
+      }
+    }
+
+    _showMessage('No valid moves available');
   }
 
   /// Show win dialog
@@ -239,64 +285,142 @@ class _GameScreenState extends ConsumerState<GameScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Level Complete!'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            // Star rating
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(3, (index) {
-                return Icon(
-                  index < stars ? Icons.star : Icons.star_border,
-                  color: Colors.amber,
-                  size: 40,
-                );
-              }),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Moves: ${state.moveCount}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            if (stars > 0) ...[
-              const SizedBox(height: 8),
-              Text(
-                _getStarMessage(stars),
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
+      builder: (context) => PopScope(
+        canPop: false, // Prevent back button from closing dialog
+        child: Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.purple.shade700,
+                  Colors.blue.shade600,
+                ],
               ),
-            ],
-          ],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Trophy icon
+                const Icon(
+                  Icons.emoji_events,
+                  color: Colors.amber,
+                  size: 64,
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                const Text(
+                  'Level Complete!',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Star rating
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(3, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(
+                        index < stars ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                        size: 48,
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 20),
+
+                // Moves count
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Moves: ${state.moveCount}',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+
+                if (stars > 0) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _getStarMessage(stars),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+
+                const SizedBox(height: 32),
+
+                // Game-like buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    // Home button
+                    _buildDialogButton(
+                      icon: Icons.home,
+                      label: 'Home',
+                      onPressed: () {
+                        context.pop();
+                        context.go('/');
+                      },
+                      color: Colors.grey.shade700,
+                    ),
+
+                    // Retry button
+                    _buildDialogButton(
+                      icon: Icons.refresh,
+                      label: 'Retry',
+                      onPressed: () {
+                        context.pop();
+                        final controller = ref.read(gameProvider.notifier);
+                        controller.reset();
+                        setState(() {
+                          _selectedContainerId = null;
+                          _hasShownGameOverDialog = false;
+                          _previousGameOverState = false;
+                        });
+                      },
+                      color: Colors.orange.shade700,
+                    ),
+
+                    // Next level button
+                    _buildDialogButton(
+                      icon: Icons.arrow_forward,
+                      label: 'Next',
+                      onPressed: () {
+                        context.pop();
+                        context.go('/levels');
+                      },
+                      color: Colors.green.shade700,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () {
-              context.pop(); // Close dialog
-              context.go('/'); // Go to home
-            },
-            child: const Text('Home'),
-          ),
-          TextButton(
-            onPressed: () {
-              context.pop(); // Close dialog
-              final controller = ref.read(gameProvider.notifier);
-              controller.reset();
-              setState(() {
-                _selectedContainerId = null;
-              });
-            },
-            child: const Text('Retry'),
-          ),
-          FilledButton(
-            onPressed: () {
-              context.pop(); // Close dialog
-              context.go('/levels'); // Go to level selector to choose next
-            },
-            child: const Text('Next Level'),
-          ),
-        ],
       ),
     );
   }
@@ -308,49 +432,105 @@ class _GameScreenState extends ConsumerState<GameScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Out of Moves'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.sentiment_dissatisfied,
-              size: 60,
-              color: Colors.orange,
+      builder: (context) => PopScope(
+        canPop: false, // Prevent back button from closing dialog
+        child: Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.red.shade700,
+                  Colors.orange.shade600,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'You\'ve used all ${state.level.moveLimit} moves.',
-              style: Theme.of(context).textTheme.bodyLarge,
-              textAlign: TextAlign.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                // Icon
+                const Icon(
+                  Icons.timer_off,
+                  color: Colors.white,
+                  size: 64,
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                const Text(
+                  'Out of Moves!',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Message
+                Text(
+                  'You\'ve used all ${state.level.moveLimit} moves.',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Try again with a better strategy!',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+
+                const SizedBox(height: 32),
+
+                // Game-like buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: <Widget>[
+                    // Home button
+                    _buildDialogButton(
+                      icon: Icons.home,
+                      label: 'Home',
+                      onPressed: () {
+                        context.pop();
+                        context.go('/');
+                      },
+                      color: Colors.grey.shade700,
+                    ),
+
+                    // Try again button
+                    _buildDialogButton(
+                      icon: Icons.refresh,
+                      label: 'Retry',
+                      onPressed: () {
+                        context.pop();
+                        final controller = ref.read(gameProvider.notifier);
+                        controller.reset();
+                        setState(() {
+                          _selectedContainerId = null;
+                          _hasShownGameOverDialog = false;
+                          _previousGameOverState = false;
+                        });
+                      },
+                      color: Colors.green.shade700,
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Try again with a better strategy!',
-              textAlign: TextAlign.center,
-            ),
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              context.pop(); // Close dialog
-              context.go('/'); // Go to home
-            },
-            child: const Text('Home'),
-          ),
-          FilledButton(
-            onPressed: () {
-              context.pop(); // Close dialog
-              final controller = ref.read(gameProvider.notifier);
-              controller.reset();
-              setState(() {
-                _selectedContainerId = null;
-              });
-            },
-            child: const Text('Try Again'),
-          ),
-        ],
       ),
     );
   }
@@ -396,20 +576,25 @@ class _GameScreenState extends ConsumerState<GameScreen>
     // Watch game state - rebuilds when state changes
     final state = ref.watch(gameProvider);
 
+    // Auto-show game over dialog when game state CHANGES to won/lost
+    // Only show if: game just became "game over" AND we have made at least 1 move
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_hasShownGameOverDialog &&
+          state.isGameOver &&
+          !_previousGameOverState &&
+          state.moveCount > 0) {
+        _hasShownGameOverDialog = true;
+        if (state.isWon) {
+          _showWinDialog();
+        } else if (state.isLost) {
+          _showLossDialog();
+        }
+      }
+      _previousGameOverState = state.isGameOver;
+    });
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(state.level.name),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/'),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => context.go('/settings'),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -422,24 +607,40 @@ class _GameScreenState extends ConsumerState<GameScreen>
           ),
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              // Game Header (level info, moves, stars)
-              _buildGameHeader(state),
+          child: Stack(
+            children: <Widget>[
+              // Main game area
+              Column(
+                children: <Widget>[
+                  // Compact top bar
+                  _buildCompactTopBar(state),
 
-              const SizedBox(height: 16),
+                  // Game Board - takes most space
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _buildGameBoard(state),
+                    ),
+                  ),
 
-              // Game Board (containers grid)
-              Expanded(
-                child: _buildGameBoard(state),
+                  // Compact bottom controls
+                  _buildCompactControls(state),
+                ],
               ),
 
-              const SizedBox(height: 16),
+              // Floating stats button (top right)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: _buildStatsButton(state),
+              ),
 
-              // Game Controls (undo, reset, hint)
-              _buildGameControls(state),
-
-              const SizedBox(height: 16),
+              // Floating back button (top left)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: _buildBackButton(),
+              ),
             ],
           ),
         ),
@@ -571,34 +772,261 @@ class _GameScreenState extends ConsumerState<GameScreen>
     );
   }
 
-  /// Build game controls
-  Widget _buildGameControls(state) {
+  /// Build compact top bar with just level name
+  Widget _buildCompactTopBar(state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 12),
+      child: Text(
+        state.level.name,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  /// Build floating back button
+  Widget _buildBackButton() {
+    return Material(
+      color: Colors.black.withOpacity(0.3),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: () => context.go('/'),
+        customBorder: const CircleBorder(),
+        child: const Padding(
+          padding: EdgeInsets.all(12),
+          child: Icon(Icons.arrow_back, color: Colors.white, size: 20),
+        ),
+      ),
+    );
+  }
+
+  /// Build floating stats button with move count
+  Widget _buildStatsButton(state) {
+    return Material(
+      color: Colors.black.withOpacity(0.3),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: () => _showStatsModal(state),
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Icon(Icons.info_outline, color: Colors.white, size: 16),
+              const SizedBox(width: 4),
+              Text(
+                '${state.moveCount}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build compact bottom controls - circular icon buttons
+  Widget _buildCompactControls(state) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
+        children: <Widget>[
           // Undo button
-          GameButton.icon(
+          _buildCircularButton(
             icon: Icons.undo,
             onPressed: state.canUndo ? _onUndo : null,
             enabled: state.canUndo,
           ),
 
-          // Reset button
-          GameButton.secondary(
-            text: 'Reset',
-            icon: Icons.refresh,
-            onPressed: _onReset,
-          ),
-
-          // Hint button (placeholder)
-          GameButton.icon(
+          // Hint button
+          _buildCircularButton(
             icon: Icons.lightbulb_outline,
             onPressed: _onHint,
+            enabled: true,
+          ),
+
+          // Reset button
+          _buildCircularButton(
+            icon: Icons.refresh,
+            onPressed: _onReset,
+            enabled: true,
           ),
         ],
       ),
+    );
+  }
+
+  /// Build circular button for game controls
+  Widget _buildCircularButton({
+    required IconData icon,
+    required VoidCallback? onPressed,
+    required bool enabled,
+  }) {
+    return Material(
+      color: enabled
+          ? Colors.white.withOpacity(0.9)
+          : Colors.white.withOpacity(0.3),
+      shape: const CircleBorder(),
+      elevation: enabled ? 4 : 0,
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Icon(
+            icon,
+            color: enabled ? Theme.of(context).colorScheme.primary : Colors.grey,
+            size: 28,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Show stats modal when info button is tapped
+  void _showStatsModal(state) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            Text(
+              'Level Info',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 24),
+
+            // Stats
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: <Widget>[
+                _buildStatItem(
+                  icon: Icons.swap_horiz,
+                  label: 'Moves',
+                  value: '${state.moveCount}${state.level.moveLimit != null ? "/${state.level.moveLimit}" : ""}',
+                ),
+                _buildStatItem(
+                  icon: Icons.star,
+                  label: 'Stars',
+                  value: state.isWon ? '${state.currentStars}/3' : '-/3',
+                ),
+                _buildStatItem(
+                  icon: Icons.trending_up,
+                  label: 'Difficulty',
+                  value: state.level.difficulty.displayName,
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Close button
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build stat item for modal
+  Widget _buildStatItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      children: <Widget>[
+        Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  /// Build game controls (legacy - keeping for compatibility)
+  Widget _buildGameControls(state) {
+    return _buildCompactControls(state);
+  }
+
+  /// Build game-like dialog button
+  Widget _buildDialogButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Material(
+          color: color,
+          shape: const CircleBorder(),
+          elevation: 4,
+          child: InkWell(
+            onTap: onPressed,
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Icon(
+                icon,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 }
