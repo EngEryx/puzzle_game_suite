@@ -35,6 +35,12 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # State management - Riverpod is ideal for game state
+  flutter_riverpod: ^2.6.1
+
+  # Routing
+  go_router: ^14.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
