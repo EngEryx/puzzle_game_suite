@@ -87,7 +87,7 @@ class _AnimatedGameBoardState extends ConsumerState<AnimatedGameBoard> {
         );
 
         return Column(
-          children: [
+          children: <Widget>[
             // Error message display (if any)
             if (_errorMessage != null) _buildErrorBanner(),
 
@@ -237,7 +237,7 @@ class _AnimatedGameBoardState extends ConsumerState<AnimatedGameBoard> {
         ),
       ),
       child: Row(
-        children: [
+        children: <Widget>[
           Icon(
             Icons.error_outline,
             color: Colors.red.shade700,
