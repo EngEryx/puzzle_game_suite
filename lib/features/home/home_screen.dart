@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../levels/controller/level_progress_controller.dart';
+import '../achievements/controller/achievement_controller.dart';
 
 /// Home screen - Entry point of the game
 ///
@@ -19,6 +20,7 @@ class HomeScreen extends ConsumerWidget {
     final progressState = ref.watch(levelProgressProvider);
     final completedCount = ref.watch(completedLevelsProvider);
     final totalStars = ref.watch(totalStarsProvider);
+    final achievementStats = ref.watch(achievementStatsProvider);
 
     return Scaffold(
       body: Container(
@@ -61,6 +63,7 @@ class HomeScreen extends ConsumerWidget {
                   loaded: (_, __, ___) => _buildProgressCard(
                     completedCount,
                     totalStars,
+                    achievementStats.unlocked,
                   ),
                   orElse: () => const SizedBox.shrink(),
                 ),
@@ -100,6 +103,22 @@ class HomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 16),
 
+                // Achievements Button
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/achievements'),
+                  icon: const Icon(Icons.emoji_events),
+                  label: const Text('Achievements'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 48,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 // Settings Button
                 OutlinedButton.icon(
                   onPressed: () => context.go('/settings'),
@@ -123,7 +142,7 @@ class HomeScreen extends ConsumerWidget {
   }
 
   /// Build progress summary card
-  Widget _buildProgressCard(int completedCount, int totalStars) {
+  Widget _buildProgressCard(int completedCount, int totalStars, int achievementsUnlocked) {
     const totalLevels = 200;
     final percentage = (completedCount / totalLevels * 100).toStringAsFixed(0);
 
@@ -190,11 +209,11 @@ class HomeScreen extends ConsumerWidget {
                 color: Colors.white.withOpacity(0.3),
               ),
 
-              // Percentage
+              // Achievements
               _buildStatColumn(
-                icon: Icons.trending_up,
-                value: '$percentage%',
-                label: 'Complete',
+                icon: Icons.emoji_events,
+                value: achievementsUnlocked.toString(),
+                label: 'Achievements',
               ),
             ],
           ),

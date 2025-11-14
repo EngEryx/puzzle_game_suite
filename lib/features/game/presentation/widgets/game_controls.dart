@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controller/game_controller.dart';
+import '../../controller/hint_controller.dart';
 import '../../../../core/services/audio_service.dart';
 import '../../../../shared/constants/animation_constants.dart';
 
@@ -60,6 +61,12 @@ class GameControls extends ConsumerWidget {
     final canUndo = ref.watch(canUndoProvider);
     final controller = ref.read(gameProvider.notifier);
     final audioService = ref.read(audioServiceProvider);
+
+    // Watch hint state
+    final hintState = ref.watch(hintProvider);
+    final hintController = ref.read(hintProvider.notifier);
+    final gameState = ref.watch(gameProvider);
+    final isGameOver = ref.watch(isGameOverProvider);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -125,22 +132,31 @@ class GameControls extends ConsumerWidget {
               tooltip: 'Reset puzzle to start',
             ),
 
-            // Hint Button (Placeholder)
+            // Hint Button
             _GameControlButton(
-              icon: Icons.lightbulb_outline,
-              label: 'Hint',
-              enabled: false, // Disabled for now
-              shouldPulse: false, // Would pulse when available
-              onPressed: () {
-                // TODO: Implement hint system in Week 2
-                // This would:
-                // 1. Analyze current state
-                // 2. Find optimal next move
-                // 3. Highlight containers
-                // 4. Maybe show move preview
-                _showComingSoon(context);
-              },
-              tooltip: 'Get a hint (coming soon)',
+              icon: hintState.freeHintsRemaining > 0
+                  ? Icons.lightbulb_outline
+                  : Icons.lightbulb,
+              label: hintState.isOnCooldown
+                  ? '${hintState.cooldownRemainingSeconds}s'
+                  : hintState.freeHintsRemaining > 0
+                      ? 'Hint (${hintState.freeHintsRemaining})'
+                      : 'Hint',
+              enabled: !isGameOver &&
+                       (hintState.canRequestFreeHint || hintState.freeHintsRemaining == 0),
+              shouldPulse: hintState.canRequestFreeHint && !isGameOver,
+              onPressed: () => _handleHintRequest(
+                context,
+                ref,
+                hintController,
+                gameState,
+                audioService,
+              ),
+              tooltip: hintState.isOnCooldown
+                  ? 'Hint cooldown: ${hintState.cooldownRemainingSeconds}s'
+                  : hintState.freeHintsRemaining > 0
+                      ? '${hintState.freeHintsRemaining} free hints remaining'
+                      : 'Get hint (${HintState.hintCostCoins} coins)',
             ),
           ],
         ),
@@ -227,15 +243,148 @@ class GameControls extends ConsumerWidget {
     );
   }
 
-  /// Show coming soon message for hint
-  void _showComingSoon(BuildContext context) {
+  /// Handle hint request
+  Future<void> _handleHintRequest(
+    BuildContext context,
+    WidgetRef ref,
+    HintController hintController,
+    dynamic gameState,
+    AudioService audioService,
+  ) async {
+    // Check if on cooldown
+    if (ref.read(hintProvider).isOnCooldown) {
+      final remaining = ref.read(hintProvider).cooldownRemainingSeconds;
+      _showError(context, 'Hint on cooldown. Wait ${remaining}s');
+      audioService.playError();
+      return;
+    }
+
+    // Show loading
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Hint system coming soon!'),
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Analyzing puzzle...'),
+          ],
+        ),
         duration: Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
       ),
     );
+
+    // Request hint
+    final result = await hintController.requestHint(
+      containers: gameState.containers,
+      levelId: gameState.level.id,
+      useCoins: ref.read(hintProvider).freeHintsRemaining <= 0,
+    );
+
+    // Dismiss loading
+    ScaffoldMessenger.of(context).clearSnackBars();
+
+    if (!result.success) {
+      // Show error or coin purchase option
+      if (result.canUseCoins) {
+        _showCoinHintDialog(context, ref, hintController, gameState, audioService);
+      } else {
+        _showError(context, result.errorMessage ?? 'No hint available');
+        audioService.playError();
+      }
+      return;
+    }
+
+    // Success - hint is now active and will be displayed by hint overlay
+    audioService.playMove();
+
+    // Show success message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.movesToSolution != null
+              ? 'Hint: ${result.movesToSolution} moves to solution'
+              : 'Hint available',
+        ),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    // Start cooldown timer update
+    _startCooldownTimer(ref);
+  }
+
+  /// Show dialog for paid hint
+  void _showCoinHintDialog(
+    BuildContext context,
+    WidgetRef ref,
+    HintController hintController,
+    dynamic gameState,
+    AudioService audioService,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Use Coins for Hint?'),
+        content: Text(
+          'No free hints remaining.\n\n'
+          'Use ${HintState.hintCostCoins} coins for a hint?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+
+              // Request paid hint
+              final result = await hintController.requestHint(
+                containers: gameState.containers,
+                levelId: gameState.level.id,
+                useCoins: true,
+              );
+
+              if (result.success) {
+                audioService.playMove();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Hint purchased'),
+                    duration: Duration(seconds: 2),
+                    behavior: SnackBarBehavior.floating,
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                audioService.playError();
+                _showError(context, result.errorMessage ?? 'Failed to purchase hint');
+              }
+            },
+            child: Text('Use ${HintState.hintCostCoins} Coins'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Start cooldown timer updates
+  void _startCooldownTimer(WidgetRef ref) {
+    // Update cooldown every second
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (ref.read(hintProvider).isOnCooldown) {
+        ref.read(hintProvider.notifier).updateCooldown();
+        return true; // Continue
+      }
+      return false; // Stop
+    });
   }
 }
 

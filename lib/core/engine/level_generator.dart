@@ -105,20 +105,21 @@ class LevelGenerator {
     int levelNumber = 1,
     String? theme,
   }) {
-    // Set seed if provided for reproducibility
-    final random = seed != null ? Random(seed) : _random;
-
-    // Get difficulty parameters
-    final params = _getDifficultyParams(difficulty);
-
     // Generate level with retries
     int attempts = 0;
-    const maxAttempts = 50;
+    const maxAttempts = 100;
 
     while (attempts < maxAttempts) {
       attempts++;
 
       try {
+        // Use different seed for each attempt to get different results
+        final attemptSeed = seed != null ? (seed + attempts) : null;
+        final random = attemptSeed != null ? Random(attemptSeed) : _random;
+
+        // Get difficulty parameters - use deterministic values for this seed
+        final params = _getDifficultyParams(difficulty, random);
+
         // Generate solved state
         final solved = _generateInitialState(
           containerCount: params.containerCount,
@@ -128,6 +129,11 @@ class LevelGenerator {
 
         // Shuffle by taking colors from full containers and putting in empty
         final containers = _distributePuzzle(solved, params.shuffleCount, random);
+
+        // Quick check before expensive validation
+        if (!LevelValidator.quickCheck(containers)) {
+          continue;
+        }
 
         // Validate solvability
         final validation = LevelValidator.validateLevel(containers);
@@ -139,6 +145,11 @@ class LevelGenerator {
         // Skip if already solved
         if (validation.optimalMoveCount == null || validation.optimalMoveCount! == 0) {
           continue; // Already solved, try again
+        }
+
+        // Skip if optimal moves is too low (level too easy)
+        if (validation.optimalMoveCount! < 2) {
+          continue;
         }
 
         // Calculate move limits and star thresholds
@@ -258,40 +269,40 @@ class LevelGenerator {
   // ==================== PRIVATE HELPERS ====================
 
   /// Get difficulty parameters.
-  static _DifficultyParams _getDifficultyParams(Difficulty difficulty) {
+  static _DifficultyParams _getDifficultyParams(Difficulty difficulty, Random random) {
     switch (difficulty) {
       case Difficulty.easy:
         return _DifficultyParams(
-          containerCount: 3 + _random.nextInt(2), // 3-4
+          containerCount: 3 + random.nextInt(2), // 3-4
           colorCount: 3,
-          shuffleCount: 5 + _random.nextInt(4), // 5-8
+          shuffleCount: 6 + random.nextInt(5), // 6-10 (increased for better mixing)
           moveMin: 10,
           moveMax: 15,
         );
 
       case Difficulty.medium:
         return _DifficultyParams(
-          containerCount: 4 + _random.nextInt(2), // 4-5
+          containerCount: 4 + random.nextInt(2), // 4-5
           colorCount: 4,
-          shuffleCount: 10 + _random.nextInt(6), // 10-15
+          shuffleCount: 12 + random.nextInt(7), // 12-18
           moveMin: 15,
           moveMax: 20,
         );
 
       case Difficulty.hard:
         return _DifficultyParams(
-          containerCount: 5 + _random.nextInt(2), // 5-6
+          containerCount: 5 + random.nextInt(2), // 5-6
           colorCount: 5,
-          shuffleCount: 15 + _random.nextInt(6), // 15-20
+          shuffleCount: 18 + random.nextInt(9), // 18-26
           moveMin: 20,
           moveMax: 30,
         );
 
       case Difficulty.expert:
         return _DifficultyParams(
-          containerCount: 6 + _random.nextInt(3), // 6-8
-          colorCount: 6 + _random.nextInt(3), // 6-8
-          shuffleCount: 20 + _random.nextInt(11), // 20-30
+          containerCount: 6 + random.nextInt(2), // 6-7 (reduced from 6-8)
+          colorCount: 5 + random.nextInt(2), // 5-6 (reduced from 6-8)
+          shuffleCount: 20 + random.nextInt(11), // 20-30 (reduced from 25-40)
           moveMin: 30,
           moveMax: 40,
         );
@@ -339,87 +350,83 @@ class LevelGenerator {
 
   /// Distribute puzzle by mixing colors from solved state.
   ///
-  /// Uses a simple pattern: split each sorted container into chunks
-  /// and distribute them across multiple containers.
+  /// Uses reverse solving: start from solved state and apply random valid moves.
   static List<Container> _distributePuzzle(
     List<Container> solvedContainers,
-    int mixingLevel,
+    int shuffleCount,
     Random random,
   ) {
-    // Collect all colors with their source container
-    final colorGroups = <GameColor, List<GameColor>>{};
+    // Clone containers
+    var containers = solvedContainers.map((c) {
+      return Container.withColors(
+        id: c.id,
+        colors: List.from(c.colors),
+        capacity: c.capacity,
+      );
+    }).toList();
 
-    for (final container in solvedContainers) {
-      if (!container.isEmpty && container.colors.isNotEmpty) {
-        final color = container.colors.first;
-        colorGroups[color] = List.from(container.colors);
-      }
+    // Apply random valid moves to shuffle
+    int successfulMoves = 0;
+    int attempts = 0;
+    final maxAttempts = shuffleCount * 10; // Allow some failed attempts
+
+    while (successfulMoves < shuffleCount && attempts < maxAttempts) {
+      attempts++;
+
+      // Pick two random containers
+      final fromIdx = random.nextInt(containers.length);
+      final toIdx = random.nextInt(containers.length);
+
+      if (fromIdx == toIdx) continue;
+
+      final from = containers[fromIdx];
+      final to = containers[toIdx];
+
+      // Check if move is valid
+      if (from.isEmpty) continue;
+      if (to.isFull) continue;
+
+      // For shuffling, we want to move colors even if they don't match
+      // This creates the puzzle complexity
+      final fromTop = from.colors.last;
+
+      // Move 1-2 colors at a time for variety
+      final moveCount = random.nextInt(2) + 1;
+      final actualMoveCount = moveCount.clamp(1, from.colors.length).clamp(1, to.capacity - to.colors.length);
+
+      if (actualMoveCount == 0) continue;
+
+      // Perform the move
+      final colorsToMove = from.colors.sublist(from.colors.length - actualMoveCount);
+
+      // Create new containers
+      final newFrom = Container.withColors(
+        id: from.id,
+        colors: from.colors.sublist(0, from.colors.length - actualMoveCount),
+        capacity: from.capacity,
+      );
+
+      final newTo = Container.withColors(
+        id: to.id,
+        colors: [...to.colors, ...colorsToMove],
+        capacity: to.capacity,
+      );
+
+      // Update containers list
+      containers = [
+        for (int i = 0; i < containers.length; i++)
+          if (i == fromIdx)
+            newFrom
+          else if (i == toIdx)
+            newTo
+          else
+            containers[i],
+      ];
+
+      successfulMoves++;
     }
 
-    if (colorGroups.isEmpty) {
-      return solvedContainers;
-    }
-
-    // Simple mixing pattern: distribute each color across 2-3 containers
-    final allColors = <List<GameColor>>[];
-
-    for (final colorGroup in colorGroups.values) {
-      // Split into 2 parts
-      final mid = colorGroup.length ~/ 2;
-      allColors.add(colorGroup.sublist(0, mid));
-      allColors.add(colorGroup.sublist(mid));
-    }
-
-    // Shuffle the groups
-    allColors.shuffle(random);
-
-    // Create containers
-    final newContainers = <Container>[];
-    final totalContainers = solvedContainers.length;
-    final fullContainerCount = colorGroups.length;
-    final emptyContainers = totalContainers - fullContainerCount;
-
-    // Pack colors into containers
-    int groupIdx = 0;
-    for (int i = 0; i < fullContainerCount; i++) {
-      final colors = <GameColor>[];
-
-      // Add colors from different groups to create mixed containers
-      while (colors.length < _containerCapacity && groupIdx < allColors.length) {
-        final group = allColors[groupIdx];
-        final take = (_containerCapacity - colors.length).clamp(0, group.length);
-
-        if (take > 0) {
-          colors.addAll(group.take(take));
-          if (take == group.length) {
-            groupIdx++;
-          } else {
-            // Partial take, update the group
-            allColors[groupIdx] = group.sublist(take);
-          }
-        } else {
-          break;
-        }
-      }
-
-      if (colors.isNotEmpty) {
-        newContainers.add(Container.withColors(
-          id: 'c$i',
-          colors: colors,
-          capacity: _containerCapacity,
-        ));
-      }
-    }
-
-    // Add empty containers
-    for (int i = 0; i < emptyContainers; i++) {
-      newContainers.add(Container.empty(
-        id: 'c${newContainers.length}',
-        capacity: _containerCapacity,
-      ));
-    }
-
-    return newContainers;
+    return containers;
   }
 
   /// Calculate move limit based on optimal solution.
@@ -478,7 +485,14 @@ class LevelGenerator {
     // Combine theme, difficulty, and level number for unique seed
     final themeHash = theme?.hashCode ?? 0;
     final difficultyValue = difficulty.index;
-    return (themeHash * 1000000) + (difficultyValue * 10000) + levelNumber;
+    final baseSeed = (themeHash * 1000000) + (difficultyValue * 10000) + levelNumber;
+
+    // Special offset for Forest theme to avoid problematic seeds
+    if (theme?.toLowerCase() == 'forest') {
+      return baseSeed + 50000;
+    }
+
+    return baseSeed;
   }
 
   /// Get difficulty distribution for level pack.

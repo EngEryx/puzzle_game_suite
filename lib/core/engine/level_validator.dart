@@ -73,11 +73,11 @@ class LevelValidator {
 
   /// Maximum search depth for BFS solver.
   /// Prevents infinite loops and limits computation time.
-  static const int _maxSearchDepth = 50;
+  static const int _maxSearchDepth = 60;
 
   /// Maximum number of states to explore.
   /// Safety limit for memory and time.
-  static const int _maxStates = 5000;
+  static const int _maxStates = 10000;
 
   /// Validate a level configuration.
   ///

@@ -53,31 +53,50 @@ void main() async {
   // Storage for all levels
   final allLevels = <String, List<Level>>{};
 
-  // Generate levels for each theme
+  // Generate levels for each theme (with retries)
   for (final theme in themes) {
     print('┌─────────────────────────────────────────────────────────┐');
     print('│ Theme: ${theme.padRight(48)}│');
     print('└─────────────────────────────────────────────────────────┘');
     print('');
 
-    try {
-      final themeLevels = LevelGenerator.generateLevelPack(
-        themes: [theme],
-        levelsPerTheme: levelsPerTheme,
-        onProgress: (currentTheme, current, total) {
-          _showProgress(current, total);
-        },
-      );
+    bool success = false;
+    int themeAttempt = 0;
+    const maxThemeAttempts = 3;
 
-      allLevels[theme] = themeLevels[theme]!;
-      totalGenerated += themeLevels[theme]!.length;
+    while (!success && themeAttempt < maxThemeAttempts) {
+      themeAttempt++;
 
-      print('\n✓ Generated ${themeLevels[theme]!.length} levels for $theme');
-      print('');
-    } catch (e) {
-      print('\n✗ Failed to generate levels for $theme: $e');
-      totalFailed += levelsPerTheme;
-      print('');
+      if (themeAttempt > 1) {
+        print('Retry attempt $themeAttempt...');
+        print('');
+      }
+
+      try {
+        final themeLevels = LevelGenerator.generateLevelPack(
+          themes: [theme],
+          levelsPerTheme: levelsPerTheme,
+          onProgress: (currentTheme, current, total) {
+            _showProgress(current, total);
+          },
+        );
+
+        allLevels[theme] = themeLevels[theme]!;
+        totalGenerated += themeLevels[theme]!.length;
+
+        print('\n✓ Generated ${themeLevels[theme]!.length} levels for $theme');
+        print('');
+        success = true;
+      } catch (e) {
+        if (themeAttempt >= maxThemeAttempts) {
+          print('\n✗ Failed to generate levels for $theme after $maxThemeAttempts attempts: $e');
+          totalFailed += levelsPerTheme;
+          print('');
+        } else {
+          print('\n⚠ Attempt $themeAttempt failed, retrying...');
+          print('');
+        }
+      }
     }
   }
 
@@ -159,8 +178,13 @@ String _generateDartCode(Map<String, List<Level>> levelsByTheme) {
     buffer.writeln("  /// ${levels.length} levels for $theme theme.");
     buffer.writeln("  static final List<Level> ${_themeVariableName(theme)} = [");
 
-    for (final level in levels) {
-      buffer.writeln(_generateLevelCode(level, indent: '    '));
+    for (int i = 0; i < levels.length; i++) {
+      buffer.write(_generateLevelCode(levels[i], indent: '    '));
+      if (i < levels.length - 1) {
+        buffer.writeln(',');
+      } else {
+        buffer.writeln();
+      }
     }
 
     buffer.writeln("  ];");

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_manager.dart';
+import 'settings_service.dart';
 import 'dart:math' as math;
 
 /// Audio service for game sound effects and music.
@@ -59,69 +60,58 @@ class AudioService {
   /// Audio manager instance
   final AudioManager _audioManager = AudioManager.instance;
 
+  /// Settings service for reading audio preferences
+  final SettingsService _settingsService;
+
   /// Random generator for pitch variation
   final math.Random _random = math.Random();
 
   /// Whether service is initialized
   bool _initialized = false;
 
-  /// Whether sound effects are enabled
-  bool _sfxEnabled = true;
-
-  /// Whether music is enabled
-  bool _musicEnabled = true;
-
-  /// Master volume (0.0 to 1.0)
-  double _masterVolume = 1.0;
-
-  /// SFX volume (0.0 to 1.0)
-  double _sfxVolume = 1.0;
-
-  /// Music volume (0.0 to 1.0)
-  double _musicVolume = 0.6;
+  AudioService(this._settingsService);
 
   // ==================== GETTERS ====================
+  // Read settings from SettingsService instead of local state
 
-  bool get sfxEnabled => _sfxEnabled;
-  bool get musicEnabled => _musicEnabled;
-  double get masterVolume => _masterVolume;
-  double get sfxVolume => _sfxVolume;
-  double get musicVolume => _musicVolume;
+  bool get sfxEnabled => _settingsService.settings.sfxEnabled;
+  bool get musicEnabled => _settingsService.settings.musicEnabled;
+  double get masterVolume => _settingsService.settings.masterVolume;
+  double get sfxVolume => _settingsService.settings.sfxVolume;
+  double get musicVolume => _settingsService.settings.musicVolume;
 
   // ==================== SETTERS ====================
+  // These are now deprecated - use SettingsController instead
+  // Kept for backwards compatibility
 
+  @Deprecated('Use SettingsController.toggleSfx() instead')
   void setSfxEnabled(bool enabled) {
-    _sfxEnabled = enabled;
-    if (!enabled) {
-      _audioManager.stopAllSfx();
-    }
-    _savePreferences();
+    // This method is deprecated - settings should be changed through SettingsController
+    print('[AudioService] Warning: setSfxEnabled is deprecated. Use SettingsController.toggleSfx() instead.');
   }
 
+  @Deprecated('Use SettingsController.toggleMusic() instead')
   void setMusicEnabled(bool enabled) {
-    _musicEnabled = enabled;
-    if (!enabled) {
-      _audioManager.stopAllMusic(fadeOutDuration: const Duration(milliseconds: 300));
-    } else {
-      startBackgroundMusic();
-    }
-    _savePreferences();
+    // This method is deprecated - settings should be changed through SettingsController
+    print('[AudioService] Warning: setMusicEnabled is deprecated. Use SettingsController.toggleMusic() instead.');
   }
 
+  @Deprecated('Use SettingsController.updateMasterVolume() instead')
   void setMasterVolume(double volume) {
-    _masterVolume = volume.clamp(0.0, 1.0);
-    // Music volume will update on next play or we can update active players
-    _savePreferences();
+    // This method is deprecated - settings should be changed through SettingsController
+    print('[AudioService] Warning: setMasterVolume is deprecated. Use SettingsController.updateMasterVolume() instead.');
   }
 
+  @Deprecated('Use SettingsController.updateSfxVolume() instead')
   void setSfxVolume(double volume) {
-    _sfxVolume = volume.clamp(0.0, 1.0);
-    _savePreferences();
+    // This method is deprecated - settings should be changed through SettingsController
+    print('[AudioService] Warning: setSfxVolume is deprecated. Use SettingsController.updateSfxVolume() instead.');
   }
 
+  @Deprecated('Use SettingsController.updateMusicVolume() instead')
   void setMusicVolume(double volume) {
-    _musicVolume = volume.clamp(0.0, 1.0);
-    _savePreferences();
+    // This method is deprecated - settings should be changed through SettingsController
+    print('[AudioService] Warning: setMusicVolume is deprecated. Use SettingsController.updateMusicVolume() instead.');
   }
 
   // ==================== INITIALIZATION ====================
@@ -131,7 +121,7 @@ class AudioService {
   /// STEPS:
   /// 1. Load sound assets
   /// 2. Create audio pools
-  /// 3. Load user preferences
+  /// 3. Settings are read from SettingsService
   /// 4. Start background music (if enabled)
   Future<void> initialize() async {
     if (_initialized) return;
@@ -139,9 +129,6 @@ class AudioService {
     try {
       // Initialize audio manager
       await _audioManager.initialize();
-
-      // Load user preferences
-      await _loadPreferences();
 
       // Preload common sounds (if they exist)
       // These will fail gracefully if files don't exist
@@ -182,34 +169,6 @@ class AudioService {
     }
   }
 
-  /// Load preferences from storage
-  Future<void> _loadPreferences() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _sfxEnabled = prefs.getBool('audio_sfxEnabled') ?? true;
-      _musicEnabled = prefs.getBool('audio_musicEnabled') ?? true;
-      _masterVolume = prefs.getDouble('audio_masterVolume') ?? 1.0;
-      _sfxVolume = prefs.getDouble('audio_sfxVolume') ?? 1.0;
-      _musicVolume = prefs.getDouble('audio_musicVolume') ?? 0.6;
-    } catch (e) {
-      print('[AudioService] Error loading preferences: $e');
-    }
-  }
-
-  /// Save preferences to storage
-  Future<void> _savePreferences() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('audio_sfxEnabled', _sfxEnabled);
-      await prefs.setBool('audio_musicEnabled', _musicEnabled);
-      await prefs.setDouble('audio_masterVolume', _masterVolume);
-      await prefs.setDouble('audio_sfxVolume', _sfxVolume);
-      await prefs.setDouble('audio_musicVolume', _musicVolume);
-    } catch (e) {
-      print('[AudioService] Error saving preferences: $e');
-    }
-  }
-
   // ==================== SOUND EFFECTS ====================
 
   /// Play move sound
@@ -226,7 +185,7 @@ class AudioService {
   /// - Volume: Medium (not too loud)
   /// - Variation: Slight pitch randomization for variety
   void playMove() {
-    if (!_sfxEnabled || !_initialized) return;
+    if (!sfxEnabled || !_initialized) return;
 
     // Add slight pitch variation for variety (0.95 to 1.05)
     final pitch = 0.95 + (_random.nextDouble() * 0.1);
@@ -234,7 +193,7 @@ class AudioService {
     _playSound(
       'move',
       assetPath: 'sounds/move.mp3',
-      volume: _sfxVolume * _masterVolume,
+      volume: sfxVolume * masterVolume,
       pitch: pitch,
     );
   }
@@ -259,11 +218,11 @@ class AudioService {
   /// - 2 stars: Double chime
   /// - 3 stars: Full fanfare with flourish
   void playWin({int stars = 1}) {
-    if (!_sfxEnabled || !_initialized) return;
+    if (!sfxEnabled || !_initialized) return;
 
     // Play appropriate win sound based on stars
     // Volume slightly louder to emphasize achievement
-    final volume = (_sfxVolume * _masterVolume * 1.2).clamp(0.0, 1.0);
+    final volume = (sfxVolume * masterVolume * 1.2).clamp(0.0, 1.0);
 
     switch (stars) {
       case 3:
@@ -298,13 +257,13 @@ class AudioService {
   ///
   /// PRINCIPLE: Communicate error without punishment
   void playError() {
-    if (!_sfxEnabled || !_initialized) return;
+    if (!sfxEnabled || !_initialized) return;
 
     // Play error sound at reduced volume (less punishing)
     _playSound(
       'error',
       assetPath: 'sounds/error.mp3',
-      volume: _sfxVolume * _masterVolume * 0.7,
+      volume: sfxVolume * masterVolume * 0.7,
     );
   }
 
@@ -317,13 +276,13 @@ class AudioService {
   /// - "Reverse" feel (descending pitch)
   /// - Neutral tone (not positive or negative)
   void playUndo() {
-    if (!_sfxEnabled || !_initialized) return;
+    if (!sfxEnabled || !_initialized) return;
 
     // Play undo with slightly lower pitch for "reverse" feel
     _playSound(
       'undo',
       assetPath: 'sounds/undo.mp3',
-      volume: _sfxVolume * _masterVolume,
+      volume: sfxVolume * masterVolume,
       pitch: 0.9,
     );
   }
@@ -337,13 +296,13 @@ class AudioService {
   /// - Subtle click
   /// - Tactile feedback
   void playButtonTap() {
-    if (!_sfxEnabled || !_initialized) return;
+    if (!sfxEnabled || !_initialized) return;
 
     // Play at reduced volume for subtle feedback
     _playSound(
       'button_tap',
       assetPath: 'sounds/button_tap.mp3',
-      volume: _sfxVolume * _masterVolume * 0.5,
+      volume: sfxVolume * masterVolume * 0.5,
     );
   }
 
@@ -356,12 +315,12 @@ class AudioService {
   /// - Energetic, ready-to-go
   /// - Signals beginning
   void playLevelStart() {
-    if (!_sfxEnabled || !_initialized) return;
+    if (!sfxEnabled || !_initialized) return;
 
     _playSound(
       'level_start',
       assetPath: 'sounds/level_start.mp3',
-      volume: _sfxVolume * _masterVolume,
+      volume: sfxVolume * masterVolume,
     );
   }
 
@@ -382,12 +341,12 @@ class AudioService {
   /// - Should fade in/out smoothly
   /// - User can disable separately from SFX
   void startBackgroundMusic() {
-    if (!_musicEnabled || !_initialized) return;
+    if (!musicEnabled || !_initialized) return;
 
     _playMusic(
       'background',
       assetPath: 'sounds/background.mp3',
-      volume: _musicVolume * _masterVolume,
+      volume: musicVolume * masterVolume,
       loop: true,
       fadeIn: const Duration(milliseconds: 1000),
     );
@@ -412,7 +371,7 @@ class AudioService {
   ///
   /// Used when app returns to foreground
   void resumeBackgroundMusic() {
-    if (!_musicEnabled || !_initialized) return;
+    if (!musicEnabled || !_initialized) return;
     _audioManager.resumeMusic('background');
   }
 
@@ -483,14 +442,15 @@ class AudioService {
 /// // Play sound
 /// ref.read(audioServiceProvider).playMove();
 ///
-/// // Toggle SFX
-/// ref.read(audioServiceProvider).setSfxEnabled(false);
+/// // Change settings (use SettingsController)
+/// ref.read(settingsControllerProvider.notifier).toggleSfx();
 ///
 /// // Watch setting
 /// final sfxEnabled = ref.watch(audioServiceProvider).sfxEnabled;
 /// ```
 final audioServiceProvider = Provider<AudioService>((ref) {
-  final service = AudioService();
+  final settingsService = ref.watch(settingsServiceProvider);
+  final service = AudioService(settingsService);
 
   // Initialize on first access
   service.initialize();

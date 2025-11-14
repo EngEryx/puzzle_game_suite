@@ -3,6 +3,7 @@ import '../features/home/home_screen.dart';
 import '../features/game/presentation/game_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/levels/presentation/level_selector_screen.dart';
+import '../features/achievements/presentation/achievements_screen.dart';
 
 /// App routing configuration
 ///
@@ -18,6 +19,7 @@ import '../features/levels/presentation/level_selector_screen.dart';
 /// /levels -> LevelSelectorScreen (level selection)
 /// /game -> GameScreen (quick play with tutorial level)
 /// /game/:levelId -> GameScreen (play specific level)
+/// /achievements -> AchievementsScreen (achievements)
 /// /settings -> SettingsScreen (configuration)
 final router = GoRouter(
   initialLocation: '/',
@@ -41,6 +43,10 @@ final router = GoRouter(
         // Pass levelId to GameScreen (will need to update GameScreen to accept it)
         return GameScreen(levelId: levelId);
       },
+    ),
+    GoRoute(
+      path: '/achievements',
+      builder: (context, state) => const AchievementsScreen(),
     ),
     GoRoute(
       path: '/settings',

@@ -257,6 +257,48 @@ class GameController extends StateNotifier<GameState> {
     _logLevelLoad(level);
   }
 
+  /// Show hint by applying suggested move with animation.
+  ///
+  /// This method integrates the hint system with the game controller.
+  /// When a hint is requested and found, this can optionally apply it
+  /// with visual feedback.
+  ///
+  /// PARAMETERS:
+  /// - [fromId]: Source container ID from hint
+  /// - [toId]: Target container ID from hint
+  /// - [autoApply]: If true, automatically applies the move
+  ///                If false, just highlights (default)
+  ///
+  /// USAGE:
+  /// ```dart
+  /// // Just highlight hint (no move)
+  /// controller.showHint(hint.fromId, hint.toId, autoApply: false);
+  ///
+  /// // Apply hint move automatically
+  /// await controller.showHint(hint.fromId, hint.toId, autoApply: true);
+  /// ```
+  Future<void> showHint({
+    required String fromId,
+    required String toId,
+    bool autoApply = false,
+  }) async {
+    if (autoApply) {
+      // Apply the hint move with animation
+      await animateMove(
+        fromId: fromId,
+        toId: toId,
+        onAnimationComplete: () {
+          // Hint was applied successfully
+          _logHintApplied(fromId, toId);
+        },
+      );
+    } else {
+      // Just log that hint was shown
+      // Actual highlighting is handled by HintOverlay widget
+      _logHintShown(fromId, toId);
+    }
+  }
+
   /// Make a move with animation
   ///
   /// This is the animated version of makeMove. It creates an animation
@@ -511,6 +553,16 @@ class GameController extends StateNotifier<GameState> {
   void _logError(String message) {
     // print('ERROR: $message');
     // Could integrate with error tracking service
+  }
+
+  void _logHintShown(String fromId, String toId) {
+    // Track hint display in analytics
+    // print('Hint shown: $fromId → $toId');
+  }
+
+  void _logHintApplied(String fromId, String toId) {
+    // Track hint application in analytics
+    // print('Hint applied: $fromId → $toId');
   }
 
   // ==================== GAME EVENTS ====================
