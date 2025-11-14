@@ -229,6 +229,13 @@ class _GameScreenState extends ConsumerState<GameScreen>
     final state = ref.read(gameProvider);
     final stars = state.currentStars;
 
+    // Save progress
+    ref.read(levelProgressProvider.notifier).completeLevel(
+      levelId: state.level.id,
+      stars: stars,
+      moves: state.moveCount,
+    );
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -236,7 +243,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
         title: const Text('Level Complete!'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: <Widget>[
             // Star rating
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -263,7 +270,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
             ],
           ],
         ),
-        actions: [
+        actions: <Widget>[
           TextButton(
             onPressed: () {
               context.pop(); // Close dialog
@@ -271,7 +278,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
             },
             child: const Text('Home'),
           ),
-          FilledButton(
+          TextButton(
             onPressed: () {
               context.pop(); // Close dialog
               final controller = ref.read(gameProvider.notifier);
@@ -280,7 +287,14 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 _selectedContainerId = null;
               });
             },
-            child: const Text('Play Again'),
+            child: const Text('Retry'),
+          ),
+          FilledButton(
+            onPressed: () {
+              context.pop(); // Close dialog
+              context.go('/levels'); // Go to level selector to choose next
+            },
+            child: const Text('Next Level'),
           ),
         ],
       ),

@@ -172,19 +172,23 @@ class LevelCard extends ConsumerWidget {
 
   /// Build star display
   Widget _buildStars(int stars) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (index) {
-        final isFilled = index < stars;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Icon(
-            isFilled ? Icons.star : Icons.star_border,
-            color: isFilled ? Colors.amber : Colors.white.withOpacity(0.5),
-            size: 16,
-          ),
-        );
-      }),
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(3, (index) {
+          final isFilled = index < stars;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: Icon(
+              isFilled ? Icons.star : Icons.star_border,
+              color: isFilled ? Colors.amber : Colors.white.withOpacity(0.5),
+              size: 14,
+            ),
+          );
+        }),
+      ),
     );
   }
 
