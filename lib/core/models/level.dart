@@ -197,22 +197,34 @@ class Level {
 
   /// Create a simple tutorial level
   ///
-  /// Perfect for teaching mechanics - one color, simple solution
-  factory Level.tutorial({required String id}) {
+  /// Perfect for teaching mechanics - 3 colors, multiple containers
+  /// Solution: Sort colors so each container has only one color type
+  factory Level.tutorial({String id = 'tutorial_1'}) {
     return Level(
       id: id,
-      name: 'Tutorial: Basic Moves',
+      name: 'Tutorial: Color Sorting',
       difficulty: Difficulty.easy,
-      description: 'Learn to pour colors between containers',
+      description: 'Sort the colors so each container has only one color',
       initialContainers: [
+        // Container 1: Red and Blue mixed
         Container.withColors(
           id: '1',
-          colors: const [GameColor.red, GameColor.red],
+          colors: const [GameColor.red, GameColor.blue, GameColor.red],
           capacity: 4,
         ),
-        Container.empty(id: '2', capacity: 4),
+        // Container 2: Blue and Red mixed
+        Container.withColors(
+          id: '2',
+          colors: const [GameColor.blue, GameColor.red, GameColor.blue],
+          capacity: 4,
+        ),
+        // Container 3: Empty helper container
+        Container.empty(id: '3', capacity: 4),
+        // Container 4: Empty helper container
+        Container.empty(id: '4', capacity: 4),
       ],
-      moveLimit: null, // Unlimited for learning
+      moveLimit: 12, // Generous move limit for learning
+      starThresholds: const [10, 8, 6], // 1 star: 10 moves, 2 stars: 8, 3 stars: 6
     );
   }
 
