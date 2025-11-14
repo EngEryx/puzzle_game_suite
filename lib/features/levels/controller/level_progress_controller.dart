@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/models/level.dart';
+import '../../../core/engine/container.dart' as game_engine;
 
 /// Controller for managing level progress using Riverpod
 ///
@@ -461,18 +462,18 @@ _DifficultyParams _getDifficultyParams(Difficulty difficulty) {
 }
 
 /// Generate containers for a level (placeholder)
-List<Container> _generateContainers(_DifficultyParams params) {
+List<game_engine.Container> _generateContainers(_DifficultyParams params) {
   // This is a simplified version
   // In production, use proper procedural generation with:
   // - Solvability checking
   // - Difficulty validation
   // - Unique layouts
 
-  final containers = <Container>[];
+  final containers = <game_engine.Container>[];
 
   // For now, just create empty containers as placeholders
   for (int i = 0; i < params.containers; i++) {
-    containers.add(Container.empty(
+    containers.add(game_engine.Container.empty(
       id: 'container_$i',
       capacity: params.capacity,
     ));
