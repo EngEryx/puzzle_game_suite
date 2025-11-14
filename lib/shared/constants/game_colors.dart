@@ -53,6 +53,9 @@ class GameColors {
     return color;
   }
 
+  /// Alias for getColor (used in animation rendering)
+  static Color getFlutterColor(GameColor gameColor) => getColor(gameColor);
+
   /// Get a darker shade of a color for gradients/shadows
   ///
   /// Used to create depth and 3D effects in the container rendering.

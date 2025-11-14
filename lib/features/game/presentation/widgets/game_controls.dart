@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controller/game_controller.dart';
 import '../../../../core/services/audio_service.dart';
+
+/// Types of haptic feedback
+enum HapticFeedbackType {
+  light,
+  medium,
+  heavy,
+  selection,
+}
 
 /// Game control bar with Undo, Reset, and Hint buttons.
 ///
@@ -141,10 +150,22 @@ class GameControls extends ConsumerWidget {
   /// - iOS: Uses UIImpactFeedbackGenerator
   /// - Android: Uses Vibrator with pattern
   /// - Web/Desktop: No effect (gracefully degrades)
-  void _triggerHapticFeedback(BuildContext context) {
-    // TODO: Implement proper haptic feedback in Week 2
-    // Example:
-    // HapticFeedback.lightImpact();
+  void _triggerHapticFeedback(BuildContext context, {HapticFeedbackType type = HapticFeedbackType.light}) {
+    try {
+      switch (type) {
+        case HapticFeedbackType.light:
+          HapticFeedback.lightImpact();
+        case HapticFeedbackType.medium:
+          HapticFeedback.mediumImpact();
+        case HapticFeedbackType.heavy:
+          HapticFeedback.heavyImpact();
+        case HapticFeedbackType.selection:
+          HapticFeedback.selectionClick();
+      }
+    } catch (e) {
+      // Haptic feedback not available on this platform
+      // Fail gracefully
+    }
   }
 
   /// Show reset confirmation dialog

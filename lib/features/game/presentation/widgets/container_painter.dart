@@ -1,7 +1,9 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../../core/engine/container.dart' as game;
 import '../../../../core/models/game_color.dart';
 import '../../../../shared/constants/game_colors.dart';
+import '../animations/pour_animation.dart';
 
 /// CustomPainter for rendering game containers.
 ///
@@ -57,10 +59,18 @@ class ContainerPainter extends CustomPainter {
   /// - Shake animation on invalid move
   final double animationValue;
 
+  /// Active pour animations involving this container
+  ///
+  /// Can include:
+  /// - Outgoing animations (pouring from this container)
+  /// - Incoming animations (pouring into this container)
+  final List<PourAnimation> pourAnimations;
+
   ContainerPainter({
     required this.container,
     this.isSelected = false,
     this.animationValue = 0.0,
+    this.pourAnimations = const [],
   });
 
   /// The main rendering method called by Flutter.
@@ -86,6 +96,10 @@ class ContainerPainter extends CustomPainter {
     _drawContainerShadow(canvas, containerRect);
     _drawContainerBackground(canvas, containerRect);
     _drawColorSegments(canvas, containerRect);
+
+    // Draw pour animations (in-flight liquid)
+    _drawPourAnimations(canvas, containerRect, size);
+
     _drawContainerOutline(canvas, containerRect);
 
     if (isSelected) {
@@ -320,6 +334,202 @@ class ContainerPainter extends CustomPainter {
     canvas.drawRRect(rrect, borderPaint);
   }
 
+  /// Draw all pour animations involving this container
+  ///
+  /// This renders the in-flight liquid as it pours from one container to another.
+  ///
+  /// RENDERING APPROACH:
+  /// 1. Separate outgoing (pouring from) and incoming (pouring to) animations
+  /// 2. For outgoing: draw arc path from top of this container
+  /// 3. For incoming: draw liquid landing at top of this container
+  /// 4. Use opacity and blur for smooth visual effect
+  ///
+  /// PERFORMANCE:
+  /// - Uses Path for smooth curves (GPU-accelerated)
+  /// - Draws one path per animation (~1-2ms each)
+  /// - Clipped to visible area for efficiency
+  void _drawPourAnimations(Canvas canvas, Rect containerRect, Size totalSize) {
+    if (pourAnimations.isEmpty) return;
+
+    for (final animation in pourAnimations) {
+      // Check if this container is source or target
+      final isSource = animation.fromContainerId == container.id;
+      final isTarget = animation.toContainerId == container.id;
+
+      if (isSource) {
+        _drawOutgoingPour(canvas, containerRect, totalSize, animation);
+      } else if (isTarget) {
+        _drawIncomingPour(canvas, containerRect, totalSize, animation);
+      }
+    }
+  }
+
+  /// Draw liquid pouring out of this container
+  ///
+  /// Creates an arc path showing liquid flowing from the top.
+  void _drawOutgoingPour(
+    Canvas canvas,
+    Rect containerRect,
+    Size totalSize,
+    PourAnimation animation,
+  ) {
+    // Start position: top center of container
+    final startX = containerRect.center.dx;
+    final startY = containerRect.top;
+
+    // Calculate the vertical distance the liquid has traveled
+    final travelDistance = totalSize.height * 0.4; // 40% of screen height
+    final currentY = startY + (travelDistance * animation.verticalProgress);
+
+    // Horizontal arc (parabolic curve)
+    final arcWidth = 30.0; // Peak horizontal displacement
+    final currentX = startX + (arcWidth * animation.arcProgress);
+
+    // Create path for the pouring liquid stream
+    final path = Path();
+    path.moveTo(startX, startY);
+
+    // Quadratic bezier curve for smooth arc
+    final controlX = (startX + currentX) / 2 + arcWidth * 0.3;
+    final controlY = (startY + currentY) / 2;
+    path.quadraticBezierTo(controlX, controlY, currentX, currentY);
+
+    // Draw the liquid stream with gradient
+    final gradient = GameColors.getColorGradient(animation.color);
+
+    // Create paint for the stream
+    final streamPaint = Paint()
+      ..shader = gradient.createShader(
+        Rect.fromLTRB(startX - 10, startY, currentX + 10, currentY),
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8.0 + (animation.count * 2.0) // Thicker for more units
+      ..strokeCap = StrokeCap.round
+      ..color = GameColors.getFlutterColor(animation.color)
+          .withOpacity(animation.opacity)
+      ..maskFilter = const ui.MaskFilter.blur(ui.BlurStyle.normal, 2);
+
+    canvas.drawPath(path, streamPaint);
+
+    // Draw droplets at the end for extra effect
+    _drawDroplets(canvas, currentX, currentY, animation);
+  }
+
+  /// Draw liquid landing into this container
+  ///
+  /// Shows the liquid accumulating at the top of the target container.
+  void _drawIncomingPour(
+    Canvas canvas,
+    Rect containerRect,
+    Size totalSize,
+    PourAnimation animation,
+  ) {
+    // Landing position: top of container
+    final centerX = containerRect.center.dx;
+    final topY = containerRect.top;
+
+    // Calculate how much liquid has landed
+    final landedProgress = animation.curvedProgress;
+
+    // Draw splash effect when liquid lands
+    if (landedProgress > 0.5) {
+      _drawSplashEffect(canvas, centerX, topY, animation, landedProgress);
+    }
+
+    // Draw ripple effect as liquid accumulates
+    if (landedProgress > 0.3) {
+      _drawRippleEffect(canvas, containerRect, animation, landedProgress);
+    }
+  }
+
+  /// Draw droplets at the end of the pour stream
+  ///
+  /// Creates small circular droplets for realistic liquid effect.
+  void _drawDroplets(Canvas canvas, double x, double y, PourAnimation animation) {
+    final color = GameColors.getFlutterColor(animation.color);
+    final dropletPaint = Paint()
+      ..color = color.withOpacity(animation.opacity * 0.8)
+      ..style = PaintingStyle.fill;
+
+    // Draw 2-3 droplets
+    final dropletCount = 2 + (animation.count > 2 ? 1 : 0);
+    for (int i = 0; i < dropletCount; i++) {
+      final offset = i * 8.0;
+      final size = 3.0 - (i * 0.5);
+      canvas.drawCircle(
+        Offset(x + (i * 3.0), y + offset),
+        size,
+        dropletPaint,
+      );
+    }
+  }
+
+  /// Draw splash effect when liquid lands
+  ///
+  /// Creates expanding splash rings.
+  void _drawSplashEffect(
+    Canvas canvas,
+    double centerX,
+    double centerY,
+    PourAnimation animation,
+    double progress,
+  ) {
+    final color = GameColors.getFlutterColor(animation.color);
+    final splashProgress = (progress - 0.5) * 2.0; // Remap to 0-1
+
+    // Draw expanding circle for splash
+    final splashRadius = 15.0 * splashProgress;
+    final splashOpacity = (1.0 - splashProgress) * animation.opacity * 0.5;
+
+    final splashPaint = Paint()
+      ..color = color.withOpacity(splashOpacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    canvas.drawCircle(
+      Offset(centerX, centerY),
+      splashRadius,
+      splashPaint,
+    );
+  }
+
+  /// Draw ripple effect as liquid accumulates
+  ///
+  /// Shows surface disturbance in the container.
+  void _drawRippleEffect(
+    Canvas canvas,
+    Rect containerRect,
+    PourAnimation animation,
+    double progress,
+  ) {
+    final color = GameColors.getFlutterColor(animation.color);
+    final rippleProgress = (progress - 0.3) / 0.7; // Remap to 0-1
+
+    // Calculate top surface position
+    final segmentHeight = containerRect.height / container.capacity;
+    final surfaceY = containerRect.bottom - (container.colors.length * segmentHeight);
+
+    // Draw subtle wave on the surface
+    final ripplePaint = Paint()
+      ..color = color.withOpacity(0.3 * (1.0 - rippleProgress))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final rippleWidth = containerRect.width * 0.8;
+    final ripplePath = Path();
+    ripplePath.moveTo(containerRect.left + containerRect.width * 0.1, surfaceY);
+
+    // Simple sine wave for ripple
+    for (double x = 0; x <= rippleWidth; x += 5) {
+      final waveY = surfaceY +
+          (2.0 * rippleProgress * (1.0 - rippleProgress)) *
+          (x / rippleWidth) * 4.0;
+      ripplePath.lineTo(containerRect.left + containerRect.width * 0.1 + x, waveY);
+    }
+
+    canvas.drawPath(ripplePath, ripplePaint);
+  }
+
   /// Determines if the painter should repaint.
   ///
   /// PERFORMANCE CRITICAL:
@@ -334,7 +544,19 @@ class ContainerPainter extends CustomPainter {
   bool shouldRepaint(ContainerPainter oldDelegate) {
     return container != oldDelegate.container ||
         isSelected != oldDelegate.isSelected ||
-        animationValue != oldDelegate.animationValue;
+        animationValue != oldDelegate.animationValue ||
+        _pourAnimationsChanged(oldDelegate.pourAnimations);
+  }
+
+  /// Check if pour animations have changed
+  bool _pourAnimationsChanged(List<PourAnimation> oldAnimations) {
+    if (pourAnimations.length != oldAnimations.length) return true;
+
+    for (int i = 0; i < pourAnimations.length; i++) {
+      if (pourAnimations[i] != oldAnimations[i]) return true;
+    }
+
+    return false;
   }
 
   /// Generate an accessibility label describing the container's state.

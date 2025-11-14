@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/game_button.dart';
 import '../controller/game_controller.dart';
+import '../../levels/controller/level_progress_controller.dart';
 
 /// Main game screen where the puzzle gameplay happens.
 ///
@@ -30,7 +31,9 @@ import '../controller/game_controller.dart';
 /// - Game state errors: Display error message
 /// - Controller exceptions: Catch and display to user
 class GameScreen extends ConsumerStatefulWidget {
-  const GameScreen({super.key});
+  final String? levelId;
+
+  const GameScreen({super.key, this.levelId});
 
   @override
   ConsumerState<GameScreen> createState() => _GameScreenState();
@@ -51,13 +54,21 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     });
   }
 
-  /// Initialize game with tutorial level
+  /// Initialize game with specified level or tutorial level
   void _initializeGame() {
     try {
-      // Get the controller to ensure the game is initialized
-      // Note: currentLevelProvider already provides tutorial level by default
-      // The game provider automatically creates a game from currentLevelProvider
-      ref.read(gameProvider.notifier);
+      final controller = ref.read(gameProvider.notifier);
+
+      // If levelId is provided, load that specific level
+      if (widget.levelId != null) {
+        final level = ref.read(levelByIdProvider(widget.levelId!));
+        if (level != null) {
+          controller.loadLevel(level);
+        } else {
+          _showError('Level not found: ${widget.levelId}');
+        }
+      }
+      // Otherwise, use the default level (tutorial)
     } catch (e) {
       _showError('Failed to initialize game: $e');
     }

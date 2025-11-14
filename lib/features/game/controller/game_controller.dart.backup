@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/engine/container.dart';
 import '../../../core/engine/game_state.dart';
 import '../../../core/models/level.dart';
+import '../../../core/models/game_color.dart';
 import '../presentation/animations/pour_animation.dart';
 
 /// Game controller using Riverpod state management.
@@ -306,13 +306,14 @@ class GameController extends StateNotifier<GameState> {
     }
 
     // Get animation details
+    final color = fromContainer.topColor!;
     final count = _calculateTransferCount(fromContainer, toContainer);
 
     // Create animation
     _currentAnimation = PourAnimationConfig.createNormal(
       fromContainerId: fromId,
       toContainerId: toId,
-      color: fromContainer.topColor!,
+      color: color,
       count: count,
     );
 
@@ -330,6 +331,7 @@ class GameController extends StateNotifier<GameState> {
 
   /// Calculate how many units will be transferred
   int _calculateTransferCount(Container from, Container to) {
+    final color = from.topColor!;
     int count = from.topColorCount;
 
     // Limit by available space in target

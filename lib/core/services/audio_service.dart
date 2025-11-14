@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'audio_manager.dart';
+import 'dart:math' as math;
 
 /// Audio service for game sound effects and music.
 ///
@@ -53,6 +56,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///
 /// ═══════════════════════════════════════════════════════════════════
 class AudioService {
+  /// Audio manager instance
+  final AudioManager _audioManager = AudioManager.instance;
+
+  /// Random generator for pitch variation
+  final math.Random _random = math.Random();
+
+  /// Whether service is initialized
+  bool _initialized = false;
+
   /// Whether sound effects are enabled
   bool _sfxEnabled = true;
 
@@ -80,27 +92,36 @@ class AudioService {
 
   void setSfxEnabled(bool enabled) {
     _sfxEnabled = enabled;
-    // TODO: Stop all SFX if disabled
+    if (!enabled) {
+      _audioManager.stopAllSfx();
+    }
+    _savePreferences();
   }
 
   void setMusicEnabled(bool enabled) {
     _musicEnabled = enabled;
-    // TODO: Stop/start music
+    if (!enabled) {
+      _audioManager.stopAllMusic(fadeOutDuration: const Duration(milliseconds: 300));
+    } else {
+      startBackgroundMusic();
+    }
+    _savePreferences();
   }
 
   void setMasterVolume(double volume) {
     _masterVolume = volume.clamp(0.0, 1.0);
-    // TODO: Update all audio volumes
+    // Music volume will update on next play or we can update active players
+    _savePreferences();
   }
 
   void setSfxVolume(double volume) {
     _sfxVolume = volume.clamp(0.0, 1.0);
-    // TODO: Update SFX volumes
+    _savePreferences();
   }
 
   void setMusicVolume(double volume) {
     _musicVolume = volume.clamp(0.0, 1.0);
-    // TODO: Update music volume
+    _savePreferences();
   }
 
   // ==================== INITIALIZATION ====================
@@ -112,33 +133,81 @@ class AudioService {
   /// 2. Create audio pools
   /// 3. Load user preferences
   /// 4. Start background music (if enabled)
-  ///
-  /// TODO: Implement in Week 2
   Future<void> initialize() async {
-    // TODO: Load sound files
-    // Example:
-    // await _loadSound('move', 'assets/sounds/move.mp3');
-    // await _loadSound('win', 'assets/sounds/win.mp3');
-    // await _loadSound('error', 'assets/sounds/error.mp3');
-    // await _loadMusic('background', 'assets/music/background.mp3');
+    if (_initialized) return;
 
-    // TODO: Load user preferences from storage
-    // final prefs = await SharedPreferences.getInstance();
-    // _sfxEnabled = prefs.getBool('sfxEnabled') ?? true;
-    // _musicEnabled = prefs.getBool('musicEnabled') ?? true;
-    // _masterVolume = prefs.getDouble('masterVolume') ?? 1.0;
+    try {
+      // Initialize audio manager
+      await _audioManager.initialize();
 
-    print('[AudioService] Initialized (placeholder)');
+      // Load user preferences
+      await _loadPreferences();
+
+      // Preload common sounds (if they exist)
+      // These will fail gracefully if files don't exist
+      await _preloadSounds();
+
+      _initialized = true;
+      print('[AudioService] Initialized successfully');
+    } catch (e) {
+      print('[AudioService] Initialization warning: $e');
+      // Continue anyway - audio is not critical for app function
+      _initialized = true;
+    }
   }
 
   /// Dispose resources
-  ///
-  /// TODO: Implement in Week 2
-  void dispose() {
-    // TODO: Stop all sounds
-    // TODO: Release audio resources
-    // TODO: Cancel timers
-    print('[AudioService] Disposed (placeholder)');
+  Future<void> dispose() async {
+    await _audioManager.stopAllSfx();
+    await _audioManager.stopAllMusic();
+    await _audioManager.dispose();
+    _initialized = false;
+    print('[AudioService] Disposed');
+  }
+
+  /// Preload common sounds for instant playback
+  Future<void> _preloadSounds() async {
+    // Try to preload, but don't fail if files don't exist
+    try {
+      await _audioManager.preloadSound('move', 'sounds/move.mp3');
+      await _audioManager.preloadSound('win_basic', 'sounds/win_basic.mp3');
+      await _audioManager.preloadSound('win_good', 'sounds/win_good.mp3');
+      await _audioManager.preloadSound('win_perfect', 'sounds/win_perfect.mp3');
+      await _audioManager.preloadSound('error', 'sounds/error.mp3');
+      await _audioManager.preloadSound('undo', 'sounds/undo.mp3');
+      await _audioManager.preloadSound('button_tap', 'sounds/button_tap.mp3');
+      await _audioManager.preloadSound('level_start', 'sounds/level_start.mp3');
+    } catch (e) {
+      print('[AudioService] Preload warning (files may not exist yet): $e');
+    }
+  }
+
+  /// Load preferences from storage
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _sfxEnabled = prefs.getBool('audio_sfxEnabled') ?? true;
+      _musicEnabled = prefs.getBool('audio_musicEnabled') ?? true;
+      _masterVolume = prefs.getDouble('audio_masterVolume') ?? 1.0;
+      _sfxVolume = prefs.getDouble('audio_sfxVolume') ?? 1.0;
+      _musicVolume = prefs.getDouble('audio_musicVolume') ?? 0.6;
+    } catch (e) {
+      print('[AudioService] Error loading preferences: $e');
+    }
+  }
+
+  /// Save preferences to storage
+  Future<void> _savePreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('audio_sfxEnabled', _sfxEnabled);
+      await prefs.setBool('audio_musicEnabled', _musicEnabled);
+      await prefs.setDouble('audio_masterVolume', _masterVolume);
+      await prefs.setDouble('audio_sfxVolume', _sfxVolume);
+      await prefs.setDouble('audio_musicVolume', _musicVolume);
+    } catch (e) {
+      print('[AudioService] Error saving preferences: $e');
+    }
   }
 
   // ==================== SOUND EFFECTS ====================
@@ -156,15 +225,18 @@ class AudioService {
   /// - Frequency: 500-2000 Hz (mid-range, clear)
   /// - Volume: Medium (not too loud)
   /// - Variation: Slight pitch randomization for variety
-  ///
-  /// TODO: Implement in Week 2
   void playMove() {
-    if (!_sfxEnabled) return;
+    if (!_sfxEnabled || !_initialized) return;
 
-    // TODO: Play sound
-    // _playSound('move', volume: _sfxVolume * _masterVolume);
+    // Add slight pitch variation for variety (0.95 to 1.05)
+    final pitch = 0.95 + (_random.nextDouble() * 0.1);
 
-    print('[AudioService] Play move sound (placeholder)');
+    _playSound(
+      'move',
+      assetPath: 'sounds/move.mp3',
+      volume: _sfxVolume * _masterVolume,
+      pitch: pitch,
+    );
   }
 
   /// Play win sound
@@ -186,22 +258,21 @@ class AudioService {
   /// - 1 star: Basic chime
   /// - 2 stars: Double chime
   /// - 3 stars: Full fanfare with flourish
-  ///
-  /// TODO: Implement in Week 2
   void playWin({int stars = 1}) {
-    if (!_sfxEnabled) return;
+    if (!_sfxEnabled || !_initialized) return;
 
-    // TODO: Play appropriate win sound based on stars
-    // switch (stars) {
-    //   case 3:
-    //     _playSound('win_perfect', volume: _sfxVolume * _masterVolume);
-    //   case 2:
-    //     _playSound('win_good', volume: _sfxVolume * _masterVolume);
-    //   default:
-    //     _playSound('win_basic', volume: _sfxVolume * _masterVolume);
-    // }
+    // Play appropriate win sound based on stars
+    // Volume slightly louder to emphasize achievement
+    final volume = (_sfxVolume * _masterVolume * 1.2).clamp(0.0, 1.0);
 
-    print('[AudioService] Play win sound (placeholder) - Stars: $stars');
+    switch (stars) {
+      case 3:
+        _playSound('win_perfect', assetPath: 'sounds/win_perfect.mp3', volume: volume);
+      case 2:
+        _playSound('win_good', assetPath: 'sounds/win_good.mp3', volume: volume);
+      default:
+        _playSound('win_basic', assetPath: 'sounds/win_basic.mp3', volume: volume);
+    }
   }
 
   /// Play error sound
@@ -226,15 +297,15 @@ class AudioService {
   /// - High-pitched sounds (piercing/stressful)
   ///
   /// PRINCIPLE: Communicate error without punishment
-  ///
-  /// TODO: Implement in Week 2
   void playError() {
-    if (!_sfxEnabled) return;
+    if (!_sfxEnabled || !_initialized) return;
 
-    // TODO: Play sound
-    // _playSound('error', volume: _sfxVolume * _masterVolume * 0.7);
-
-    print('[AudioService] Play error sound (placeholder)');
+    // Play error sound at reduced volume (less punishing)
+    _playSound(
+      'error',
+      assetPath: 'sounds/error.mp3',
+      volume: _sfxVolume * _masterVolume * 0.7,
+    );
   }
 
   /// Play undo sound
@@ -245,15 +316,16 @@ class AudioService {
   /// - Short (100-150ms)
   /// - "Reverse" feel (descending pitch)
   /// - Neutral tone (not positive or negative)
-  ///
-  /// TODO: Implement in Week 2
   void playUndo() {
-    if (!_sfxEnabled) return;
+    if (!_sfxEnabled || !_initialized) return;
 
-    // TODO: Play sound (maybe move sound in reverse/lower pitch)
-    // _playSound('undo', volume: _sfxVolume * _masterVolume);
-
-    print('[AudioService] Play undo sound (placeholder)');
+    // Play undo with slightly lower pitch for "reverse" feel
+    _playSound(
+      'undo',
+      assetPath: 'sounds/undo.mp3',
+      volume: _sfxVolume * _masterVolume,
+      pitch: 0.9,
+    );
   }
 
   /// Play button tap sound
@@ -264,15 +336,15 @@ class AudioService {
   /// - Very short (30-50ms)
   /// - Subtle click
   /// - Tactile feedback
-  ///
-  /// TODO: Implement in Week 2
   void playButtonTap() {
-    if (!_sfxEnabled) return;
+    if (!_sfxEnabled || !_initialized) return;
 
-    // TODO: Play sound
-    // _playSound('button_tap', volume: _sfxVolume * _masterVolume * 0.5);
-
-    print('[AudioService] Play button tap sound (placeholder)');
+    // Play at reduced volume for subtle feedback
+    _playSound(
+      'button_tap',
+      assetPath: 'sounds/button_tap.mp3',
+      volume: _sfxVolume * _masterVolume * 0.5,
+    );
   }
 
   /// Play level start sound
@@ -283,13 +355,14 @@ class AudioService {
   /// - Short-medium (200-300ms)
   /// - Energetic, ready-to-go
   /// - Signals beginning
-  ///
-  /// TODO: Implement in Week 2
   void playLevelStart() {
-    if (!_sfxEnabled) return;
+    if (!_sfxEnabled || !_initialized) return;
 
-    // TODO: Play sound
-    print('[AudioService] Play level start sound (placeholder)');
+    _playSound(
+      'level_start',
+      assetPath: 'sounds/level_start.mp3',
+      volume: _sfxVolume * _masterVolume,
+    );
   }
 
   // ==================== MUSIC ====================
@@ -308,77 +381,98 @@ class AudioService {
   /// - Volume should be lower than SFX
   /// - Should fade in/out smoothly
   /// - User can disable separately from SFX
-  ///
-  /// TODO: Implement in Week 2
   void startBackgroundMusic() {
-    if (!_musicEnabled) return;
+    if (!_musicEnabled || !_initialized) return;
 
-    // TODO: Start music
-    // _playMusic('background', loop: true, volume: _musicVolume * _masterVolume);
-
-    print('[AudioService] Start background music (placeholder)');
+    _playMusic(
+      'background',
+      assetPath: 'sounds/background.mp3',
+      volume: _musicVolume * _masterVolume,
+      loop: true,
+      fadeIn: const Duration(milliseconds: 1000),
+    );
   }
 
   /// Stop background music
-  ///
-  /// TODO: Implement in Week 2
   void stopBackgroundMusic() {
-    // TODO: Stop music with fade out
-    // _stopMusic('background', fadeOut: Duration(milliseconds: 500));
-
-    print('[AudioService] Stop background music (placeholder)');
+    _audioManager.stopMusic(
+      'background',
+      fadeOutDuration: const Duration(milliseconds: 500),
+    );
   }
 
   /// Pause background music
   ///
   /// Used when app goes to background
-  ///
-  /// TODO: Implement in Week 2
   void pauseBackgroundMusic() {
-    // TODO: Pause music
-    print('[AudioService] Pause background music (placeholder)');
+    _audioManager.pauseMusic('background');
   }
 
   /// Resume background music
   ///
   /// Used when app returns to foreground
-  ///
-  /// TODO: Implement in Week 2
   void resumeBackgroundMusic() {
-    if (!_musicEnabled) return;
-
-    // TODO: Resume music
-    print('[AudioService] Resume background music (placeholder)');
+    if (!_musicEnabled || !_initialized) return;
+    _audioManager.resumeMusic('background');
   }
 
   // ==================== HELPERS ====================
 
   /// Play a sound by name
   ///
-  /// TODO: Implement in Week 2
-  void _playSound(String name, {double volume = 1.0}) {
-    // TODO: Get sound from pool/cache
-    // TODO: Set volume
-    // TODO: Play
-    // TODO: Return to pool when done
+  /// Internal helper that handles the actual sound playback
+  void _playSound(
+    String soundId, {
+    required String assetPath,
+    double volume = 1.0,
+    double pitch = 1.0,
+  }) {
+    if (!_initialized) return;
+
+    try {
+      // Get or create audio source
+      final source = _audioManager.getOrCreateSource(soundId, assetPath);
+
+      // Play sound through audio manager
+      _audioManager.playSfx(
+        soundId: soundId,
+        source: source,
+        volume: volume.clamp(0.0, 1.0),
+        pitch: pitch.clamp(0.5, 2.0),
+      );
+    } catch (e) {
+      // Fail gracefully - audio errors shouldn't crash the app
+      print('[AudioService] Error playing sound $soundId: $e');
+    }
   }
 
   /// Play music by name
   ///
-  /// TODO: Implement in Week 2
-  void _playMusic(String name, {bool loop = false, double volume = 1.0}) {
-    // TODO: Load music
-    // TODO: Set volume
-    // TODO: Set looping
-    // TODO: Play
-  }
+  /// Internal helper for music playback
+  void _playMusic(
+    String musicId, {
+    required String assetPath,
+    bool loop = false,
+    double volume = 1.0,
+    Duration? fadeIn,
+  }) {
+    if (!_initialized) return;
 
-  /// Stop music by name
-  ///
-  /// TODO: Implement in Week 2
-  void _stopMusic(String name, {Duration? fadeOut}) {
-    // TODO: Stop music
-    // TODO: Apply fade out if specified
+    try {
+      // Get or create audio source
+      final source = _audioManager.getOrCreateSource(musicId, assetPath);
+
+      // Play music through audio manager
+      _audioManager.playMusic(
+        musicId: musicId,
+        source: source,
+        volume: volume.clamp(0.0, 1.0),
+        loop: loop,
+        fadeInDuration: fadeIn,
+      );
+    } catch (e) {
+      print('[AudioService] Error playing music $musicId: $e');
+    }
   }
 }
 
