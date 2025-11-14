@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/engine/container.dart' as game;
 import 'container_painter.dart';
+import '../animations/pour_animation.dart';
 
 /// A widget that renders a game container (tube) with visual representation
 /// of stacked colors.
@@ -82,12 +83,22 @@ class ContainerWidget extends StatefulWidget {
   /// For tablet: larger containers
   final Size size;
 
+  /// Active pour animations involving this container
+  ///
+  /// This list can include:
+  /// - Outgoing animations (pouring from this container)
+  /// - Incoming animations (pouring into this container)
+  ///
+  /// The ContainerPainter will filter and render these appropriately.
+  final List<PourAnimation> pourAnimations;
+
   const ContainerWidget({
     Key? key,
     required this.container,
     this.onTap,
     this.isSelected = false,
     this.size = const Size(80, 180),
+    this.pourAnimations = const [],
   }) : super(key: key);
 
   @override
@@ -171,6 +182,7 @@ class _ContainerWidgetState extends State<ContainerWidget>
               container: widget.container,
               isSelected: widget.isSelected,
               animationValue: _animation.value,
+              pourAnimations: widget.pourAnimations,
             );
 
             return CustomPaint(
@@ -238,6 +250,9 @@ class SizedContainerWidget extends StatelessWidget {
   /// A container with capacity 4 will be 4 × 45 = 180 pixels tall
   final double unitHeight;
 
+  /// Active pour animations
+  final List<PourAnimation> pourAnimations;
+
   const SizedContainerWidget({
     Key? key,
     required this.container,
@@ -245,6 +260,7 @@ class SizedContainerWidget extends StatelessWidget {
     this.isSelected = false,
     this.unitWidth = 20.0,
     this.unitHeight = 45.0,
+    this.pourAnimations = const [],
   }) : super(key: key);
 
   @override
@@ -260,6 +276,7 @@ class SizedContainerWidget extends StatelessWidget {
       onTap: onTap,
       isSelected: isSelected,
       size: size,
+      pourAnimations: pourAnimations,
     );
   }
 }

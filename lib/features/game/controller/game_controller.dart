@@ -5,6 +5,7 @@ import '../../../core/engine/container.dart';
 import '../../../core/engine/game_state.dart';
 import '../../../core/models/level.dart';
 import '../presentation/animations/pour_animation.dart';
+import '../../../core/services/audio_service.dart';
 
 /// Game controller using Riverpod state management.
 ///
@@ -99,6 +100,9 @@ import '../presentation/animations/pour_animation.dart';
 ///
 /// ═══════════════════════════════════════════════════════════════════
 class GameController extends StateNotifier<GameState> {
+  /// Audio service for sound effects
+  final AudioService? _audioService;
+
   /// Current active animation (if any)
   PourAnimation? _currentAnimation;
 
@@ -112,7 +116,9 @@ class GameController extends StateNotifier<GameState> {
   ///
   /// StateNotifier requires initial state
   /// We create it from the level
-  GameController(Level level) : super(GameState.fromLevel(level));
+  GameController(Level level, {AudioService? audioService})
+      : _audioService = audioService,
+        super(GameState.fromLevel(level));
 
   /// Get current animation (if any)
   PourAnimation? get currentAnimation => _currentAnimation;
@@ -156,6 +162,9 @@ class GameController extends StateNotifier<GameState> {
       // This is the ONLY place where state changes!
       state = newState;
 
+      // Play move sound
+      _audioService?.playMove();
+
       // Optional: Log move for analytics
       _logMove(fromId, toId, newState);
 
@@ -166,6 +175,8 @@ class GameController extends StateNotifier<GameState> {
         _onGameLost();
       }
     } catch (e) {
+      // Play error sound for invalid move
+      _audioService?.playError();
       // Re-throw with more context
       throw ArgumentError('Move failed ($fromId → $toId): $e');
     }
@@ -197,6 +208,9 @@ class GameController extends StateNotifier<GameState> {
     final newState = state.undo();
     state = newState;
 
+    // Play undo sound
+    _audioService?.playUndo();
+
     _logUndo();
   }
 
@@ -217,6 +231,9 @@ class GameController extends StateNotifier<GameState> {
     final newState = state.reset();
     state = newState;
 
+    // Play level start sound
+    _audioService?.playLevelStart();
+
     _logReset();
   }
 
@@ -233,6 +250,10 @@ class GameController extends StateNotifier<GameState> {
     _currentAnimation = null;
     _animationCompleteCallback = null;
     _pendingMove = null;
+
+    // Play level start sound
+    _audioService?.playLevelStart();
+
     _logLevelLoad(level);
   }
 
@@ -503,7 +524,11 @@ class GameController extends StateNotifier<GameState> {
     // - Stats save
     // - Show next level button
 
-    // final stars = state.currentStars;
+    final stars = state.currentStars;
+
+    // Play win sound with appropriate star level
+    _audioService?.playWin(stars: stars);
+
     // print('🎉 Won! Stars: $stars, Moves: ${state.moveCount}');
   }
 
@@ -513,6 +538,9 @@ class GameController extends StateNotifier<GameState> {
     // - Encouraging message
     // - Hint offer
     // - Retry button
+
+    // Play error sound (gentle, not punishing)
+    _audioService?.playError();
 
     // print('😢 Lost! Move limit: ${state.level.moveLimit}');
   }
@@ -563,8 +591,11 @@ final gameProvider = StateNotifierProvider<GameController, GameState>((ref) {
   // Get current level (dependency)
   final level = ref.watch(currentLevelProvider);
 
-  // Create controller with level
-  return GameController(level);
+  // Get audio service (dependency)
+  final audioService = ref.watch(audioServiceProvider);
+
+  // Create controller with level and audio service
+  return GameController(level, audioService: audioService);
 });
 
 /// Provider for the current level

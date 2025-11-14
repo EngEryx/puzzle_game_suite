@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/widgets/game_button.dart';
 import '../controller/game_controller.dart';
 import '../../levels/controller/level_progress_controller.dart';
+import 'animations/pour_animator.dart';
+import 'widgets/animated_game_board.dart';
 
 /// Main game screen where the puzzle gameplay happens.
 ///
@@ -39,19 +41,38 @@ class GameScreen extends ConsumerStatefulWidget {
   ConsumerState<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends ConsumerState<GameScreen> {
+class _GameScreenState extends ConsumerState<GameScreen>
+    with SingleTickerProviderStateMixin {
   /// Selected container ID for multi-tap move input
   /// Null = no selection
   String? _selectedContainerId;
 
+  /// Animation coordinator for pour animations
+  late PourAnimator _animator;
+
   @override
   void initState() {
     super.initState();
+
+    // Initialize pour animator
+    _animator = PourAnimator(
+      vsync: this,
+      animationDuration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+
     // Initialize game on screen load
     // We do this in the next frame to ensure provider is ready
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeGame();
     });
+  }
+
+  @override
+  void dispose() {
+    // Dispose animator to prevent memory leaks
+    _animator.dispose();
+    super.dispose();
   }
 
   /// Initialize game with specified level or tutorial level
@@ -127,19 +148,33 @@ class _GameScreenState extends ConsumerState<GameScreen> {
     _makeMove(fromId, toId);
   }
 
-  /// Execute a move
-  void _makeMove(String fromId, String toId) {
+  /// Execute a move with animation
+  void _makeMove(String fromId, String toId) async {
     try {
       final controller = ref.read(gameProvider.notifier);
-      controller.makeMove(fromId, toId);
-
-      // Check for win/loss after move
       final state = ref.read(gameProvider);
-      if (state.isWon) {
-        _showWinDialog();
-      } else if (state.isLost) {
-        _showLossDialog();
+
+      // Get the source container to determine color and count for animation
+      final fromContainer = state.getContainer(fromId);
+      if (fromContainer == null || fromContainer.isEmpty) {
+        _showError('Invalid source container');
+        return;
       }
+
+      // Start the animation
+      await controller.animateMove(
+        fromId: fromId,
+        toId: toId,
+        onAnimationComplete: () {
+          // Check for win/loss after animation completes
+          final updatedState = ref.read(gameProvider);
+          if (updatedState.isWon) {
+            _showWinDialog();
+          } else if (updatedState.isLost) {
+            _showLossDialog();
+          }
+        },
+      );
     } catch (e) {
       _showError(e.toString());
     }
@@ -514,125 +549,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
   }
 
   /// Build game board with containers
-  ///
-  /// TODO: This is a placeholder until GameBoard widget is created
-  /// For now, we'll show a simple grid of container placeholders
   Widget _buildGameBoard(state) {
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            alignment: WrapAlignment.center,
-            children: state.containers.map((container) {
-              final isSelected = _selectedContainerId == container.id;
-              return _buildContainerPlaceholder(container, isSelected);
-            }).toList(),
-          ),
-        ),
-      ),
+    return AnimatedGameBoard(
+      selectedContainerId: _selectedContainerId,
+      onContainerTap: _onContainerTap,
+      animator: _animator,
     );
-  }
-
-  /// Build container placeholder
-  ///
-  /// TODO: Replace with actual ContainerWidget when available
-  Widget _buildContainerPlaceholder(container, bool isSelected) {
-    final theme = Theme.of(context);
-
-    return GestureDetector(
-      onTap: () => _onContainerTap(container.id),
-      child: Container(
-        width: 80,
-        height: 120,
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.outline.withOpacity(0.3),
-            width: isSelected ? 3 : 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            // Colors (bottom to top)
-            ...container.colors.map((color) {
-              return Container(
-                width: double.infinity,
-                height: 120 / container.capacity,
-                decoration: BoxDecoration(
-                  color: _getColorForGameColor(color),
-                  border: Border(
-                    top: BorderSide(
-                      color: Colors.white.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                ),
-              );
-            }),
-            // Empty space indicator
-            if (container.colors.length < container.capacity)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    container.id,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withOpacity(0.3),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Map GameColor to Flutter Color
-  ///
-  /// TODO: Move this to a theme/color utility file
-  Color _getColorForGameColor(gameColor) {
-    switch (gameColor.toString().split('.').last) {
-      case 'red':
-        return Colors.red;
-      case 'blue':
-        return Colors.blue;
-      case 'green':
-        return Colors.green;
-      case 'yellow':
-        return Colors.yellow;
-      case 'purple':
-        return Colors.purple;
-      case 'orange':
-        return Colors.orange;
-      case 'pink':
-        return Colors.pink;
-      case 'cyan':
-        return Colors.cyan;
-      case 'brown':
-        return Colors.brown;
-      case 'lime':
-        return Colors.lime;
-      case 'magenta':
-        return Colors.pink.shade300;
-      case 'teal':
-        return Colors.teal;
-      default:
-        return Colors.grey;
-    }
   }
 
   /// Build game controls

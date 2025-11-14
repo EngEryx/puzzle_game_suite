@@ -2,8 +2,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../../../core/engine/container.dart' as game;
 import '../../../../core/models/game_color.dart';
+import '../../../../core/models/game_theme.dart';
 import '../../../../shared/constants/game_colors.dart';
 import '../animations/pour_animation.dart';
+import '../../theme/theme_painter_factory.dart';
 
 /// CustomPainter for rendering game containers.
 ///
@@ -44,6 +46,11 @@ import '../animations/pour_animation.dart';
 /// With 10 containers: We need < 1.6ms per container
 /// CustomPainter gives us this; widgets don't.
 ///
+/// THEME SUPPORT:
+/// - Optionally accepts a GameTheme for theme-specific rendering
+/// - Falls back to default rendering if no theme provided
+/// - Maintains backward compatibility with existing code
+///
 class ContainerPainter extends CustomPainter {
   /// The container model to render
   final game.Container container;
@@ -66,12 +73,58 @@ class ContainerPainter extends CustomPainter {
   /// - Incoming animations (pouring into this container)
   final List<PourAnimation> pourAnimations;
 
+  /// Optional theme for theme-specific rendering.
+  ///
+  /// If null, uses default water-like rendering (backward compatible).
+  /// If provided, delegates rendering to theme-specific painter.
+  final GameTheme? theme;
+
+  /// Cached theme painter for performance.
+  ///
+  /// Reused across frames when theme doesn't change.
+  ThemePainter? _cachedThemePainter;
+
+  /// Cached Paint objects for performance
+  /// OPTIMIZATION: Reuse Paint objects to reduce allocations
+  static final Paint _shadowPaint = Paint()
+    ..color = GameColors.containerShadow.withOpacity(0.2)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+  static final Paint _backgroundPaint = Paint()
+    ..color = GameColors.containerBackground
+    ..style = PaintingStyle.fill;
+
+  static final Paint _outlinePaint = Paint()
+    ..color = GameColors.containerOutline
+    ..strokeWidth = 3
+    ..style = PaintingStyle.stroke;
+
+  static final Paint _highlightPaint = Paint()
+    ..color = Colors.white.withOpacity(0.3)
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+
+  static final Paint _segmentHighlightPaint = Paint()
+    ..color = Colors.white.withOpacity(0.2)
+    ..style = PaintingStyle.fill;
+
+  static final Paint _separatorPaint = Paint()
+    ..color = Colors.black.withOpacity(0.1)
+    ..strokeWidth = 1
+    ..style = PaintingStyle.stroke;
+
   ContainerPainter({
     required this.container,
     this.isSelected = false,
     this.animationValue = 0.0,
     this.pourAnimations = const [],
-  });
+    this.theme,
+  }) {
+    // Initialize theme painter if theme is provided
+    if (theme != null) {
+      _cachedThemePainter = ThemePainterFactory.getPainter(theme!);
+    }
+  }
 
   /// The main rendering method called by Flutter.
   ///
@@ -80,12 +133,23 @@ class ContainerPainter extends CustomPainter {
   /// - Use const values where possible
   /// - Minimize draw calls
   /// - Cache Paint objects
+  ///
+  /// THEME SUPPORT:
+  /// - If theme is provided, delegates to theme-specific painter
+  /// - Otherwise uses default rendering (backward compatible)
   @override
   void paint(Canvas canvas, Size size) {
     // Calculate dimensions for the container
     // We use the available size to make the container responsive
     final containerRect = _calculateContainerRect(size);
 
+    // If theme is provided, use theme-specific rendering
+    if (_cachedThemePainter != null) {
+      _paintWithTheme(canvas, containerRect, size);
+      return;
+    }
+
+    // Default rendering (backward compatible)
     // Render in layers (back to front):
     // 1. Container shadow (depth)
     // 2. Container background (inside the tube)
@@ -104,6 +168,63 @@ class ContainerPainter extends CustomPainter {
 
     if (isSelected) {
       _drawSelectionIndicator(canvas, containerRect);
+    }
+  }
+
+  /// Paint using theme-specific painter.
+  ///
+  /// DELEGATION PATTERN:
+  /// This method delegates rendering to the theme painter,
+  /// allowing each theme to implement its own rendering logic.
+  void _paintWithTheme(Canvas canvas, Rect containerRect, Size size) {
+    final themePainter = _cachedThemePainter!;
+
+    // 1. Draw shadow (if theme supports it)
+    if (theme!.containerShadows != null) {
+      _drawContainerShadow(canvas, containerRect);
+    }
+
+    // 2. Draw container background
+    themePainter.paintContainerBackground(canvas, containerRect);
+
+    // 3. Draw color segments
+    if (!container.isEmpty) {
+      final segmentHeight = containerRect.height / container.capacity;
+
+      for (int i = 0; i < container.colors.length; i++) {
+        final color = container.colors[i];
+        final segmentTop = containerRect.bottom - (segmentHeight * (i + 1));
+        final segmentRect = Rect.fromLTWH(
+          containerRect.left,
+          segmentTop,
+          containerRect.width,
+          segmentHeight,
+        );
+
+        themePainter.paintColorSegment(canvas, segmentRect, color);
+      }
+    }
+
+    // 4. Draw pour animations
+    for (final animation in pourAnimations) {
+      themePainter.paintPourAnimation(
+        canvas,
+        containerRect,
+        size,
+        animation,
+      );
+    }
+
+    // 5. Draw container outline
+    themePainter.paintContainerOutline(canvas, containerRect);
+
+    // 6. Draw selection indicator if selected
+    if (isSelected) {
+      themePainter.paintSelectionIndicator(
+        canvas,
+        containerRect,
+        animationValue,
+      );
     }
   }
 
@@ -127,11 +248,9 @@ class ContainerPainter extends CustomPainter {
   ///
   /// This creates a subtle 3D effect making the container appear
   /// to float above the background.
+  ///
+  /// OPTIMIZATION: Uses cached Paint object
   void _drawContainerShadow(Canvas canvas, Rect rect) {
-    final shadowPaint = Paint()
-      ..color = GameColors.containerShadow.withOpacity(0.2)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
-
     // Offset shadow slightly down and right
     final shadowRect = rect.translate(2, 2);
 
@@ -141,24 +260,22 @@ class ContainerPainter extends CustomPainter {
       const Radius.circular(12),
     );
 
-    canvas.drawRRect(rrect, shadowPaint);
+    canvas.drawRRect(rrect, _shadowPaint);
   }
 
   /// Draw the container's background (the inside of the tube).
   ///
   /// This represents the empty space where colors can be poured.
+  ///
+  /// OPTIMIZATION: Uses cached Paint object
   void _drawContainerBackground(Canvas canvas, Rect rect) {
-    final backgroundPaint = Paint()
-      ..color = GameColors.containerBackground
-      ..style = PaintingStyle.fill;
-
     // Draw rounded rectangle for background
     final rrect = RRect.fromRectAndRadius(
       rect,
       const Radius.circular(12),
     );
 
-    canvas.drawRRect(rrect, backgroundPaint);
+    canvas.drawRRect(rrect, _backgroundPaint);
   }
 
   /// Draw the color segments inside the container.
@@ -220,11 +337,9 @@ class ContainerPainter extends CustomPainter {
   /// Draw a highlight on the top edge of a color segment.
   ///
   /// This creates a glossy, liquid-like appearance.
+  ///
+  /// OPTIMIZATION: Uses cached Paint object
   void _drawSegmentHighlight(Canvas canvas, Rect rect) {
-    final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
     // Draw a thin highlight rect at the top
     final highlightRect = Rect.fromLTWH(
       rect.left,
@@ -233,23 +348,20 @@ class ContainerPainter extends CustomPainter {
       rect.height * 0.15, // 15% of segment height
     );
 
-    canvas.drawRect(highlightRect, highlightPaint);
+    canvas.drawRect(highlightRect, _segmentHighlightPaint);
   }
 
   /// Draw a separator line between color segments.
   ///
   /// This helps distinguish individual colors when they're stacked.
+  ///
+  /// OPTIMIZATION: Uses cached Paint object
   void _drawSegmentSeparator(Canvas canvas, Rect rect) {
-    final separatorPaint = Paint()
-      ..color = Colors.black.withOpacity(0.1)
-      ..strokeWidth = 1
-      ..style = PaintingStyle.stroke;
-
     // Draw line at the top of this segment
     canvas.drawLine(
       Offset(rect.left, rect.top),
       Offset(rect.right, rect.top),
-      separatorPaint,
+      _separatorPaint,
     );
   }
 
@@ -257,19 +369,16 @@ class ContainerPainter extends CustomPainter {
   ///
   /// This is drawn last so it appears on top of the color segments,
   /// creating the illusion that the colors are inside the tube.
+  ///
+  /// OPTIMIZATION: Uses cached Paint object
   void _drawContainerOutline(Canvas canvas, Rect rect) {
-    final outlinePaint = Paint()
-      ..color = GameColors.containerOutline
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
     // Draw rounded rectangle for outline
     final rrect = RRect.fromRectAndRadius(
       rect,
       const Radius.circular(12),
     );
 
-    canvas.drawRRect(rrect, outlinePaint);
+    canvas.drawRRect(rrect, _outlinePaint);
 
     // Add inner edge highlight for 3D effect
     _drawInnerHighlight(canvas, rect);
@@ -278,12 +387,9 @@ class ContainerPainter extends CustomPainter {
   /// Draw an inner highlight on the container for 3D depth.
   ///
   /// This makes the container look like it has thickness and depth.
+  ///
+  /// OPTIMIZATION: Uses cached Paint object
   void _drawInnerHighlight(Canvas canvas, Rect rect) {
-    final highlightPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
-
     // Draw slightly inset rounded rectangle
     final insetRect = rect.deflate(2);
     final rrect = RRect.fromRectAndRadius(
@@ -291,7 +397,7 @@ class ContainerPainter extends CustomPainter {
       const Radius.circular(10),
     );
 
-    canvas.drawRRect(rrect, highlightPaint);
+    canvas.drawRRect(rrect, _highlightPaint);
   }
 
   /// Draw the selection indicator.
@@ -536,16 +642,36 @@ class ContainerPainter extends CustomPainter {
   /// Returning false when nothing changed prevents unnecessary repaints.
   /// This is key to maintaining 60fps.
   ///
+  /// OPTIMIZATION STRATEGY:
+  /// - Use identity comparison (==) for efficient checking
+  /// - Early return on first difference found
+  /// - Check most likely changes first (animation, then selection, then container)
+  ///
   /// We repaint if:
-  /// - Container contents changed (different colors)
+  /// - Theme changed (triggers full repaint)
+  /// - Animation value changed (most frequent during animations)
   /// - Selection state changed
-  /// - Animation value changed
+  /// - Container contents changed (different colors)
+  /// - Pour animations changed
   @override
   bool shouldRepaint(ContainerPainter oldDelegate) {
-    return container != oldDelegate.container ||
-        isSelected != oldDelegate.isSelected ||
-        animationValue != oldDelegate.animationValue ||
-        _pourAnimationsChanged(oldDelegate.pourAnimations);
+    // Check theme first (critical for visual changes)
+    if (theme != oldDelegate.theme) return true;
+
+    // Check animation first (most likely to change during gameplay)
+    if (animationValue != oldDelegate.animationValue) return true;
+
+    // Check selection state
+    if (isSelected != oldDelegate.isSelected) return true;
+
+    // Check pour animations
+    if (_pourAnimationsChanged(oldDelegate.pourAnimations)) return true;
+
+    // Check container contents last (uses == operator which might be expensive)
+    if (container != oldDelegate.container) return true;
+
+    // Nothing changed, no repaint needed
+    return false;
   }
 
   /// Check if pour animations have changed

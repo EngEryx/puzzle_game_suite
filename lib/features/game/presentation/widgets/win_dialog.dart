@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../controller/game_controller.dart';
 import '../../../../shared/widgets/star_rating.dart';
+import '../../../../shared/widgets/particle_effect.dart';
+import '../../../../shared/animations/bounce_effect.dart';
+import '../../../../shared/constants/animation_constants.dart';
 import '../../../../core/services/audio_service.dart';
 
 /// Dialog shown when player completes a level.
@@ -77,8 +80,12 @@ class _WinDialogState extends ConsumerState<WinDialog>
     with TickerProviderStateMixin {
   late AnimationController _slideController;
   late AnimationController _starController;
+  late AnimationController _shimmerController;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
+  late Animation<double> _shimmerAnimation;
+  late BounceController _trophyBounce;
+  bool _showConfetti = false;
 
   @override
   void initState() {
@@ -91,7 +98,7 @@ class _WinDialogState extends ConsumerState<WinDialog>
 
     // Slide-in animation
     _slideController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: AnimationConstants.medium,
       vsync: this,
     );
 
@@ -101,7 +108,7 @@ class _WinDialogState extends ConsumerState<WinDialog>
     ).animate(
       CurvedAnimation(
         parent: _slideController,
-        curve: Curves.easeOutCubic,
+        curve: AnimationConstants.easeOutCubic,
       ),
     );
 
@@ -111,25 +118,58 @@ class _WinDialogState extends ConsumerState<WinDialog>
     ).animate(
       CurvedAnimation(
         parent: _slideController,
-        curve: Curves.easeOut,
+        curve: AnimationConstants.easeOut,
       ),
     );
 
     // Star animation (staggered)
     _starController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: AnimationConstants.verySlow,
       vsync: this,
     );
 
-    // Start animations
+    // Shimmer animation for gradient effect
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat();
+
+    _shimmerAnimation = Tween<double>(
+      begin: -1.0,
+      end: 2.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _shimmerController,
+        curve: AnimationConstants.linear,
+      ),
+    );
+
+    // Trophy bounce controller
+    _trophyBounce = BounceController();
+
+    // Start animations with stagger
     _slideController.forward();
-    _starController.forward();
+    Future.delayed(AnimationConstants.fast, () {
+      if (mounted) {
+        _starController.forward();
+        _trophyBounce.bounceLarge();
+      }
+    });
+
+    // Show confetti after dialog appears
+    Future.delayed(AnimationConstants.normal, () {
+      if (mounted) {
+        setState(() => _showConfetti = true);
+      }
+    });
   }
 
   @override
   void dispose() {
     _slideController.dispose();
     _starController.dispose();
+    _shimmerController.dispose();
+    _trophyBounce.dispose();
     super.dispose();
   }
 
@@ -141,43 +181,101 @@ class _WinDialogState extends ConsumerState<WinDialog>
     final stars = gameState.currentStars;
     final moveCount = gameState.moveCount;
 
-    return FadeTransition(
-      opacity: _fadeAnimation,
-      child: SlideTransition(
-        position: _slideAnimation,
-        child: Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.amber.shade50,
-                  Colors.orange.shade50,
-                ],
+    return Stack(
+      children: [
+        // Confetti overlay
+        if (_showConfetti)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ParticleEffect.confetti(
+                particleCount: stars == 3 ? 100 : 50,
               ),
-              borderRadius: BorderRadius.circular(24),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Trophy icon
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade100,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.emoji_events,
-                    size: 48,
-                    color: Colors.amber.shade700,
-                  ),
-                ),
+          ),
+        // Dialog
+        FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: AnimatedBuilder(
+                  animation: _shimmerAnimation,
+                  builder: (context, child) {
+                    return Stack(
+                      children: [
+                        // Base gradient background
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.amber.shade50,
+                                Colors.orange.shade50,
+                              ],
+                            ),
+                          ),
+                          child: child,
+                        ),
+                        // Shimmer overlay
+                        Positioned.fill(
+                          child: ShaderMask(
+                            shaderCallback: (bounds) {
+                              return LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: const [
+                                  Colors.transparent,
+                                  Colors.white24,
+                                  Colors.transparent,
+                                ],
+                                stops: [
+                                  _shimmerAnimation.value - 0.3,
+                                  _shimmerAnimation.value,
+                                  _shimmerAnimation.value + 0.3,
+                                ],
+                              ).createShader(bounds);
+                            },
+                            child: Container(
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Trophy icon with bounce
+                      BounceEffect.wobbly(
+                        controller: _trophyBounce,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade100,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.amber.withOpacity(0.3),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.emoji_events,
+                            size: 48,
+                            color: Colors.amber.shade700,
+                          ),
+                        ),
+                      ),
 
                 const SizedBox(height: 16),
 
@@ -329,11 +427,15 @@ class _WinDialogState extends ConsumerState<WinDialog>
                     ),
                   ],
                 ),
-              ],
+              ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -418,7 +520,10 @@ class _StatRow extends StatelessWidget {
 /// ✓ Audio feedback (win sound)
 ///
 /// TODO (Week 2):
-/// □ Confetti/particle effects
+/// ✓ Confetti/particle effects
+/// ✓ Trophy bounce animation
+/// ✓ Gradient shimmer effect
+/// ✓ Enhanced visual polish
 /// □ Star count-up animation
 /// □ Share score functionality
 /// □ Leaderboard integration

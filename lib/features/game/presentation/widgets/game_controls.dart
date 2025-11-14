@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../controller/game_controller.dart';
 import '../../../../core/services/audio_service.dart';
+import '../../../../shared/constants/animation_constants.dart';
 
 /// Types of haptic feedback
 enum HapticFeedbackType {
@@ -82,6 +83,7 @@ class GameControls extends ConsumerWidget {
               icon: Icons.undo,
               label: 'Undo',
               enabled: canUndo,
+              iconRotation: canUndo,
               onPressed: () {
                 try {
                   controller.undo();
@@ -111,6 +113,7 @@ class GameControls extends ConsumerWidget {
               icon: Icons.refresh,
               label: 'Reset',
               enabled: true,
+              iconRotation: true,
               onPressed: () {
                 // Show confirmation dialog for destructive action
                 _showResetConfirmation(
@@ -127,6 +130,7 @@ class GameControls extends ConsumerWidget {
               icon: Icons.lightbulb_outline,
               label: 'Hint',
               enabled: false, // Disabled for now
+              shouldPulse: false, // Would pulse when available
               onPressed: () {
                 // TODO: Implement hint system in Week 2
                 // This would:
@@ -253,6 +257,8 @@ class _GameControlButton extends StatefulWidget {
   final bool enabled;
   final VoidCallback onPressed;
   final String tooltip;
+  final bool iconRotation;
+  final bool shouldPulse;
 
   const _GameControlButton({
     required this.icon,
@@ -260,6 +266,8 @@ class _GameControlButton extends StatefulWidget {
     required this.enabled,
     required this.onPressed,
     required this.tooltip,
+    this.iconRotation = false,
+    this.shouldPulse = false,
   });
 
   @override
@@ -267,53 +275,122 @@ class _GameControlButton extends StatefulWidget {
 }
 
 class _GameControlButtonState extends State<_GameControlButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+    with TickerProviderStateMixin {
+  late AnimationController _pressController;
+  late AnimationController _rotationController;
+  late AnimationController _pulseController;
   late Animation<double> _scaleAnimation;
+  late Animation<double> _rotationAnimation;
+  late Animation<double> _pulseAnimation;
+  bool _wasEnabled = false;
 
   @override
   void initState() {
     super.initState();
+    _wasEnabled = widget.enabled;
 
     // Press animation controller
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 100),
+    _pressController = AnimationController(
+      duration: AnimationConstants.ultraFast,
       vsync: this,
     );
 
-    // Scale from 1.0 to 0.95 on press
+    // Scale from 1.0 to buttonPressScale on press
     _scaleAnimation = Tween<double>(
       begin: 1.0,
-      end: 0.95,
+      end: AnimationConstants.buttonPressScale,
     ).animate(
       CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeInOut,
+        parent: _pressController,
+        curve: AnimationConstants.spring,
       ),
     );
+
+    // Rotation animation (for undo and reset icons)
+    _rotationController = AnimationController(
+      duration: AnimationConstants.medium,
+      vsync: this,
+    );
+
+    _rotationAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _rotationController,
+        curve: AnimationConstants.spring,
+      ),
+    );
+
+    // Pulse animation (for hint button)
+    _pulseController = AnimationController(
+      duration: AnimationConstants.pulseInterval,
+      vsync: this,
+    );
+
+    _pulseAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.05),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.05, end: 1.0),
+        weight: 50,
+      ),
+    ]).animate(_pulseController);
+
+    if (widget.shouldPulse && widget.enabled) {
+      _pulseController.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_GameControlButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Trigger rotation when enabled state changes
+    if (widget.enabled != _wasEnabled && widget.iconRotation) {
+      _wasEnabled = widget.enabled;
+      if (widget.enabled) {
+        _rotationController.forward(from: 0.0);
+      }
+    }
+
+    // Control pulse animation
+    if (widget.shouldPulse != oldWidget.shouldPulse ||
+        widget.enabled != oldWidget.enabled) {
+      if (widget.shouldPulse && widget.enabled) {
+        _pulseController.repeat();
+      } else {
+        _pulseController.stop();
+        _pulseController.value = 0.0;
+      }
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _pressController.dispose();
+    _rotationController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
   void _handleTapDown(TapDownDetails details) {
     if (widget.enabled) {
-      _controller.forward();
+      _pressController.forward();
     }
   }
 
   void _handleTapUp(TapUpDetails details) {
     if (widget.enabled) {
-      _controller.reverse();
+      _pressController.reverse();
     }
   }
 
   void _handleTapCancel() {
     if (widget.enabled) {
-      _controller.reverse();
+      _pressController.reverse();
     }
   }
 
@@ -330,16 +407,22 @@ class _GameControlButtonState extends State<_GameControlButton>
         onTapCancel: _handleTapCancel,
         onTap: widget.enabled ? widget.onPressed : null,
         child: AnimatedBuilder(
-          animation: _scaleAnimation,
+          animation: Listenable.merge([
+            _scaleAnimation,
+            _pulseAnimation,
+          ]),
           builder: (context, child) {
             return Transform.scale(
-              scale: _scaleAnimation.value,
-              child: Opacity(
-                opacity: widget.enabled ? 1.0 : 0.4,
+              scale: _scaleAnimation.value * _pulseAnimation.value,
+              child: AnimatedOpacity(
+                duration: AnimationConstants.fast,
+                opacity: widget.enabled
+                    ? 1.0
+                    : AnimationConstants.disabledOpacity,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Icon button
+                    // Icon button with ripple effect
                     Container(
                       width: 56,
                       height: 56,
@@ -358,12 +441,23 @@ class _GameControlButtonState extends State<_GameControlButton>
                               ]
                             : null,
                       ),
-                      child: Icon(
-                        widget.icon,
-                        size: 28,
-                        color: widget.enabled
-                            ? colorScheme.onPrimaryContainer
-                            : Colors.grey.shade500,
+                      child: AnimatedBuilder(
+                        animation: _rotationAnimation,
+                        builder: (context, child) {
+                          return Transform.rotate(
+                            angle: widget.iconRotation
+                                ? _rotationAnimation.value *
+                                    -AnimationConstants.fullTurn
+                                : 0.0,
+                            child: Icon(
+                              widget.icon,
+                              size: 28,
+                              color: widget.enabled
+                                  ? colorScheme.onPrimaryContainer
+                                  : Colors.grey.shade500,
+                            ),
+                          );
+                        },
                       ),
                     ),
 
@@ -404,9 +498,13 @@ class _GameControlButtonState extends State<_GameControlButton>
 /// ✓ High contrast colors
 ///
 /// TODO (Week 2):
+/// ✓ Enhanced button press animations
+/// ✓ Icon rotation animations (undo, reset)
+/// ✓ Pulse animation for hints
+/// ✓ Smooth state transitions
+/// ✓ Using animation constants
 /// □ Implement actual haptic feedback
 /// □ Add hint system implementation
-/// □ Animate button state transitions
 /// □ Add keyboard shortcuts (web/desktop)
 /// □ Implement undo limit (optional)
 /// □ Add double-tap to reset shortcut
