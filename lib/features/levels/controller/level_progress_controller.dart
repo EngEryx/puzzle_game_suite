@@ -180,14 +180,6 @@ class ProgressState {
   final int? completedCount;
   final String? errorMessage;
 
-  const ProgressState._({
-    required this.type,
-    this.progress,
-    this.totalStars,
-    this.completedCount,
-    this.errorMessage,
-  });
-
   const ProgressState.loading()
       : type = ProgressStateType.loading,
         progress = null,
