@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/achievement.dart';
 import 'achievement_service.dart';
 import 'progress_service.dart';
 

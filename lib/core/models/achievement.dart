@@ -26,8 +26,8 @@
 /// - Xbox Gamerscore
 /// - PlayStation Trophies
 /// - Mobile game badges
+library;
 
-import 'package:flutter/foundation.dart';
 
 /// Type of achievement
 ///

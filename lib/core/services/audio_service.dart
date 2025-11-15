@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_manager.dart';
 import 'settings_service.dart';
 import 'dart:math' as math;
@@ -156,14 +155,15 @@ class AudioService {
   Future<void> _preloadSounds() async {
     // Try to preload, but don't fail if files don't exist
     try {
-      await _audioManager.preloadSound('move', 'sounds/move.mp3');
-      await _audioManager.preloadSound('win_basic', 'sounds/win_basic.mp3');
+      await _audioManager.preloadSound('move', 'sounds/pour.mp3');
+      await _audioManager.preloadSound('win_basic', 'sounds/win.mp3');
       await _audioManager.preloadSound('win_good', 'sounds/win_good.mp3');
       await _audioManager.preloadSound('win_perfect', 'sounds/win_perfect.mp3');
       await _audioManager.preloadSound('error', 'sounds/error.mp3');
       await _audioManager.preloadSound('undo', 'sounds/undo.mp3');
-      await _audioManager.preloadSound('button_tap', 'sounds/button_tap.mp3');
-      await _audioManager.preloadSound('level_start', 'sounds/level_start.mp3');
+      await _audioManager.preloadSound('button_tap', 'sounds/click.mp3');
+      // level_start.mp3 doesn't exist yet - skip it
+      // await _audioManager.preloadSound('level_start', 'sounds/level_start.mp3');
     } catch (e) {
       print('[AudioService] Preload warning (files may not exist yet): $e');
     }
@@ -192,7 +192,7 @@ class AudioService {
 
     _playSound(
       'move',
-      assetPath: 'sounds/move.mp3',
+      assetPath: 'sounds/pour.mp3',
       volume: sfxVolume * masterVolume,
       pitch: pitch,
     );
@@ -230,7 +230,7 @@ class AudioService {
       case 2:
         _playSound('win_good', assetPath: 'sounds/win_good.mp3', volume: volume);
       default:
-        _playSound('win_basic', assetPath: 'sounds/win_basic.mp3', volume: volume);
+        _playSound('win_basic', assetPath: 'sounds/win.mp3', volume: volume);
     }
   }
 
@@ -301,7 +301,7 @@ class AudioService {
     // Play at reduced volume for subtle feedback
     _playSound(
       'button_tap',
-      assetPath: 'sounds/button_tap.mp3',
+      assetPath: 'sounds/click.mp3',
       volume: sfxVolume * masterVolume * 0.5,
     );
   }
@@ -317,11 +317,13 @@ class AudioService {
   void playLevelStart() {
     if (!sfxEnabled || !_initialized) return;
 
-    _playSound(
-      'level_start',
-      assetPath: 'sounds/level_start.mp3',
-      volume: sfxVolume * masterVolume,
-    );
+    // TODO: Add level_start.mp3 sound file
+    // For now, disabled as the file doesn't exist yet
+    // _playSound(
+    //   'level_start',
+    //   assetPath: 'sounds/level_start.mp3',
+    //   volume: sfxVolume * masterVolume,
+    // );
   }
 
   // ==================== MUSIC ====================
