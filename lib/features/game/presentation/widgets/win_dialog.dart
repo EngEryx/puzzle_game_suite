@@ -361,14 +361,7 @@ class _WinDialogState extends ConsumerState<WinDialog>
                       child: FilledButton.icon(
                         onPressed: () {
                           Navigator.of(context).pop();
-                          // TODO: Load next level
-                          // For now, just show placeholder
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Next level coming soon!'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
+                          _loadNextLevel(context);
                         },
                         icon: const Icon(Icons.arrow_forward),
                         label: const Text('Next Level'),
@@ -427,16 +420,73 @@ class _WinDialogState extends ConsumerState<WinDialog>
                     ),
                   ],
                 ),
-              ),
-                    ],
-                  ),
-                ),
-              ),
+              ],
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      ),
+    )
+  }
+
+  /// Load the next level
+  ///
+  /// LOGIC:
+  /// 1. Get current level ID (e.g., "ocean_001")
+  /// 2. Extract theme and number (theme="ocean", num=1)
+  /// 3. Calculate next level (2)
+  /// 4. Navigate to next level if it exists within theme (1-50)
+  /// 5. If at end of theme, move to next theme
+  /// 6. Otherwise, go to level selector
+  void _loadNextLevel(BuildContext context) {
+    final gameState = ref.read(gameProvider);
+    final currentLevelId = gameState.level.id;
+
+    // Extract theme and number from ID (e.g., "ocean_001" -> theme="ocean", num=1)
+    final match = RegExp(r'(\w+)_(\d+)').firstMatch(currentLevelId);
+    if (match == null) {
+      // Invalid level ID, go back to levels
+      context.go('/levels');
+      return;
+    }
+
+    final theme = match.group(1)!;
+    final currentNum = int.parse(match.group(2)!);
+    final nextNum = currentNum + 1;
+
+    // Check if there's a next level in the current theme (max 50 per theme)
+    if (nextNum <= 50) {
+      final nextLevelId = '${theme}_${nextNum.toString().padLeft(3, '0')}';
+      context.go('/game/$nextLevelId');
+    } else {
+      // At end of theme, move to next theme or show completion
+      final themes = ['ocean', 'forest', 'desert', 'space'];
+      final currentThemeIndex = themes.indexOf(theme.toLowerCase());
+
+      if (currentThemeIndex >= 0 && currentThemeIndex < themes.length - 1) {
+        // Move to next theme
+        final nextTheme = themes[currentThemeIndex + 1];
+        final nextLevelId = '${nextTheme}_001';
+        context.go('/game/$nextLevelId');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('New theme unlocked: ${nextTheme[0].toUpperCase()}${nextTheme.substring(1)}!'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        // Completed all levels!
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Congratulations! You completed all levels!'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        context.go('/levels');
+      }
+    }
   }
 
   /// Get encouraging message based on star rating
