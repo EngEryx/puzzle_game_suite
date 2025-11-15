@@ -106,7 +106,7 @@ class ProgressService {
   /// Load unlocked levels from storage
   void _loadUnlockedLevels() {
     final List<String>? unlocked = _prefs.getStringList(_unlockedLevelsKey);
-    _unlockedLevels = unlocked?.toSet() ?? {'level_1'}; // Level 1 always unlocked
+    _unlockedLevels = unlocked?.toSet() ?? {'ocean_001'}; // First ocean level always unlocked
   }
 
   /// Save unlocked levels to storage
@@ -227,16 +227,34 @@ class ProgressService {
   /// Unlock the next level in sequence
   ///
   /// SEQUENTIAL UNLOCK LOGIC:
-  /// - Extract level number from ID (e.g., "level_5" -> 5)
-  /// - Unlock next number (e.g., "level_6")
+  /// - Extract theme and number from ID (e.g., "ocean_001" -> theme="ocean", num=1)
+  /// - Increment number (e.g., 2)
+  /// - Format as 3-digit number (e.g., "002")
+  /// - Unlock next level (e.g., "ocean_002")
+  /// - If at end of theme (e.g., ocean_050), unlock first level of next theme
   ///
-  /// This assumes level IDs follow the pattern "level_N"
+  /// This handles level IDs in format "theme_NNN"
   Future<void> _unlockNextLevel(String currentLevelId) async {
-    final match = RegExp(r'level_(\d+)').firstMatch(currentLevelId);
+    final match = RegExp(r'(\w+)_(\d+)').firstMatch(currentLevelId);
     if (match != null) {
-      final currentNum = int.parse(match.group(1)!);
-      final nextLevelId = 'level_${currentNum + 1}';
-      await unlockLevel(nextLevelId);
+      final theme = match.group(1)!;
+      final currentNum = int.parse(match.group(2)!);
+      final nextNum = currentNum + 1;
+
+      // If within same theme (max 50 levels per theme)
+      if (nextNum <= 50) {
+        final nextLevelId = '${theme}_${nextNum.toString().padLeft(3, '0')}';
+        await unlockLevel(nextLevelId);
+      } else {
+        // Move to next theme
+        final themes = ['ocean', 'forest', 'desert', 'space'];
+        final currentThemeIndex = themes.indexOf(theme.toLowerCase());
+        if (currentThemeIndex >= 0 && currentThemeIndex < themes.length - 1) {
+          final nextTheme = themes[currentThemeIndex + 1];
+          final nextLevelId = '${nextTheme}_001';
+          await unlockLevel(nextLevelId);
+        }
+      }
     }
   }
 
@@ -259,9 +277,9 @@ class ProgressService {
     }
   }
 
-  /// Reset all unlocked levels (except level 1)
+  /// Reset all unlocked levels (except ocean_001)
   Future<void> resetUnlockedLevels() async {
-    _unlockedLevels = {'level_1'};
+    _unlockedLevels = {'ocean_001'};
     await _saveUnlockedLevels();
   }
 

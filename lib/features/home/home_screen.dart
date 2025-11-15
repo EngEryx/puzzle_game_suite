@@ -39,21 +39,64 @@ class HomeScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Game Title
-                const Text(
-                  'Puzzle Game Suite',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
+                // Game Logo/Icon
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.amber.shade400,
+                        Colors.orange.shade600,
+                      ],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.amber.withOpacity(0.5),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.extension_rounded,
+                    size: 64,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  '4-in-1 Collection',
+                const SizedBox(height: 24),
+
+                // Game Title with shadow
+                Text(
+                  'Puzzle Game Suite',
                   style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
+                    fontSize: 36,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.5),
+                        offset: const Offset(0, 4),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
+                  ),
+                  child: const Text(
+                    '🎮 4-in-1 Color Puzzle Collection 🎨',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -70,66 +113,143 @@ class HomeScreen extends ConsumerWidget {
 
                 const SizedBox(height: 32),
 
-                // Levels Button (Primary CTA)
-                ElevatedButton(
-                  onPressed: () => context.go('/levels'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 16,
+                // Levels Button (Primary CTA) - Big and colorful
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.green.shade400, Colors.teal.shade600],
                     ),
-                    textStyle: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withOpacity(0.5),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: const Text('Levels'),
-                ),
-                const SizedBox(height: 16),
-
-                // Quick Play Button (Random level)
-                OutlinedButton.icon(
-                  onPressed: () => context.go('/game'),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Quick Play'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Achievements Button
-                OutlinedButton.icon(
-                  onPressed: () => context.go('/achievements'),
-                  icon: const Icon(Icons.emoji_events),
-                  label: const Text('Achievements'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 16,
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/levels'),
+                    icon: const Icon(Icons.grid_view_rounded, size: 28),
+                    label: const Text('PLAY LEVELS'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 48,
+                        vertical: 18,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Settings Button
-                OutlinedButton.icon(
-                  onPressed: () => context.go('/settings'),
-                  icon: const Icon(Icons.settings),
-                  label: const Text('Settings'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 48,
-                      vertical: 16,
+                // Quick Play Button - Fun and playful
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.pink.shade400, Colors.purple.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.pink.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/game'),
+                    icon: const Icon(Icons.flash_on_rounded, size: 24),
+                    label: const Text('Quick Play'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 14,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Achievements Button - Trophy style
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.amber.shade400, Colors.orange.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.amber.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/achievements'),
+                    icon: const Icon(Icons.emoji_events_rounded, size: 24),
+                    label: const Text('Trophy Room'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 14,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Settings Button - Simple but styled
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.blueGrey.shade400, Colors.blueGrey.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blueGrey.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/settings'),
+                    icon: const Icon(Icons.settings_rounded, size: 24),
+                    label: const Text('Settings'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 14,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),

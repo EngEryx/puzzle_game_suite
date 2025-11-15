@@ -154,36 +154,143 @@ class _LevelSelectorScreenState extends ConsumerState<LevelSelectorScreen>
 
   /// Build header with progress and back button
   Widget _buildHeader(BuildContext context, ProgressState progressState) {
+    final completedCount = ref.watch(completedLevelsProvider);
+
     return Container(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
           Row(
             children: [
-              // Back button
-              IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => context.pop(),
+              // Gamified home button with badge
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Colors.amber.shade400, Colors.orange.shade600],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.withOpacity(0.4),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.home_rounded, color: Colors.white),
+                  iconSize: 28,
+                  onPressed: () {
+                    // Play button sound (if available)
+                    context.go('/');
+                  },
+                  tooltip: 'Home',
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              // Title with game-style typography
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Level Map',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 1.2,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(2, 2),
+                            blurRadius: 4,
+                            color: Colors.black45,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '200 Puzzles Await',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.8),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Achievements button with badge
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.shade400, Colors.blue.shade600],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple.withOpacity(0.4),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.emoji_events, color: Colors.white),
+                      iconSize: 26,
+                      onPressed: () => context.go('/achievements'),
+                      tooltip: 'Achievements',
+                    ),
+                  ),
+                  if (completedCount > 0)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 20,
+                          minHeight: 20,
+                        ),
+                        child: Text(
+                          '$completedCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
               ),
 
               const SizedBox(width: 8),
 
-              // Title
-              const Expanded(
-                child: Text(
-                  'Select Level',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+              // Settings button
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.2),
                 ),
-              ),
-
-              // Settings button (future)
-              IconButton(
-                icon: const Icon(Icons.settings, color: Colors.white),
-                onPressed: () => context.go('/settings'),
+                child: IconButton(
+                  icon: const Icon(Icons.settings, color: Colors.white),
+                  iconSize: 24,
+                  onPressed: () => context.go('/settings'),
+                  tooltip: 'Settings',
+                ),
               ),
             ],
           ),
@@ -519,7 +626,7 @@ class _LevelSelectorWithSearchState
                       children: [
                         IconButton(
                           icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () => context.pop(),
+                          onPressed: () => context.go('/'),
                         ),
                         const Text(
                           'Select Level',

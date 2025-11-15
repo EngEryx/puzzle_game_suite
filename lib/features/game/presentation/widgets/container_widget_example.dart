@@ -15,7 +15,7 @@ import 'container_widget.dart';
 /// 4. Handle tap callbacks to implement game logic
 ///
 class ContainerWidgetExample extends StatefulWidget {
-  const ContainerWidgetExample({Key? key}) : super(key: key);
+  const ContainerWidgetExample({super.key});
 
   @override
   State<ContainerWidgetExample> createState() => _ContainerWidgetExampleState();
@@ -262,7 +262,7 @@ class _ContainerWidgetExampleState extends State<ContainerWidgetExample> {
 
 /// Minimal example showing just the widget usage
 class MinimalExample extends StatelessWidget {
-  const MinimalExample({Key? key}) : super(key: key);
+  const MinimalExample({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +292,7 @@ class MinimalExample extends StatelessWidget {
 
 /// Example showing responsive sizing
 class ResponsiveSizingExample extends StatelessWidget {
-  const ResponsiveSizingExample({Key? key}) : super(key: key);
+  const ResponsiveSizingExample({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +326,7 @@ class ResponsiveSizingExample extends StatelessWidget {
 
 /// Example showing the SizedContainerWidget
 class AutoSizedExample extends StatelessWidget {
-  const AutoSizedExample({Key? key}) : super(key: key);
+  const AutoSizedExample({super.key});
 
   @override
   Widget build(BuildContext context) {

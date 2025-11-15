@@ -257,10 +257,14 @@ class _AnimatedStarState extends State<_AnimatedStar>
     return AnimatedBuilder(
       animation: controller,
       builder: (context, child) {
+        // Clamp opacity to valid range [0.0, 1.0] to prevent assertion errors
+        // This handles edge cases where animation controller might produce values outside this range
+        final clampedOpacity = _fadeAnimation.value.clamp(0.0, 1.0);
+
         return Transform.scale(
           scale: _scaleAnimation.value,
           child: Opacity(
-            opacity: _fadeAnimation.value,
+            opacity: clampedOpacity,
             child: Icon(
               widget.filled ? Icons.star : Icons.star_border,
               size: widget.size,

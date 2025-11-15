@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'config/routes.dart';
 
 /// App Entry Point
@@ -19,6 +21,11 @@ import 'config/routes.dart';
 /// 4. Immutable by default: Fits game state pattern
 /// 5. Great DevTools: Debug state easily
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Only initialize ads on mobile platforms (not web)
+  if (!kIsWeb) {
+    MobileAds.instance.initialize();
+  }
   runApp(
     const ProviderScope(
       child: PuzzleGameApp(),
