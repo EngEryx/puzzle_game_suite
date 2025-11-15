@@ -86,23 +86,38 @@ class ContainerPainter extends CustomPainter {
 
   /// Cached Paint objects for performance
   /// OPTIMIZATION: Reuse Paint objects to reduce allocations
+
+  // Enhanced shadow with multiple layers for depth
   static final Paint _shadowPaint = Paint()
-    ..color = GameColors.containerShadow.withOpacity(0.2)
-    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+    ..color = Colors.black.withOpacity(0.3)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
 
-  static final Paint _backgroundPaint = Paint()
-    ..color = GameColors.containerBackground
-    ..style = PaintingStyle.fill;
+  static final Paint _innerShadowPaint = Paint()
+    ..color = Colors.black.withOpacity(0.15)
+    ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 4);
 
+  // Glass-like container outline with gradient effect
   static final Paint _outlinePaint = Paint()
-    ..color = GameColors.containerOutline
-    ..strokeWidth = 3
+    ..color = const Color(0xFF2D3561)
+    ..strokeWidth = 4
     ..style = PaintingStyle.stroke;
 
-  static final Paint _highlightPaint = Paint()
-    ..color = Colors.white.withOpacity(0.3)
-    ..strokeWidth = 1.5
+  static final Paint _innerOutlinePaint = Paint()
+    ..color = const Color(0xFF3D4571)
+    ..strokeWidth = 2
     ..style = PaintingStyle.stroke;
+
+  // Metallic edge highlights
+  static final Paint _highlightPaint = Paint()
+    ..color = Colors.white.withOpacity(0.4)
+    ..strokeWidth = 2
+    ..style = PaintingStyle.stroke;
+
+  static final Paint _edgeGlowPaint = Paint()
+    ..color = Colors.white.withOpacity(0.2)
+    ..strokeWidth = 1
+    ..style = PaintingStyle.stroke
+    ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
 
   static final Paint _segmentHighlightPaint = Paint()
     ..color = Colors.white.withOpacity(0.2)
@@ -246,28 +261,53 @@ class ContainerPainter extends CustomPainter {
 
   /// Draw the container's shadow for depth perception.
   ///
-  /// This creates a subtle 3D effect making the container appear
-  /// to float above the background.
+  /// Enhanced with multiple shadow layers for realistic 3D depth.
   ///
-  /// OPTIMIZATION: Uses cached Paint object
+  /// OPTIMIZATION: Uses cached Paint objects
   void _drawContainerShadow(Canvas canvas, Rect rect) {
-    // Offset shadow slightly down and right
-    final shadowRect = rect.translate(2, 2);
+    // Draw multiple shadow layers for depth
+    // Layer 1: Soft outer shadow
+    final outerShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
 
-    // Draw rounded rectangle for shadow
-    final rrect = RRect.fromRectAndRadius(
-      shadowRect,
+    final outerShadowRect = rect.translate(3, 3);
+    final outerRRect = RRect.fromRectAndRadius(
+      outerShadowRect,
       const Radius.circular(12),
     );
+    canvas.drawRRect(outerRRect, outerShadowPaint);
 
-    canvas.drawRRect(rrect, _shadowPaint);
+    // Layer 2: Medium shadow
+    final mediumShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.2)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+    final mediumShadowRect = rect.translate(2, 2);
+    final mediumRRect = RRect.fromRectAndRadius(
+      mediumShadowRect,
+      const Radius.circular(12),
+    );
+    canvas.drawRRect(mediumRRect, mediumShadowPaint);
+
+    // Layer 3: Close shadow for definition
+    final closeShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.15)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+
+    final closeShadowRect = rect.translate(1, 1);
+    final closeRRect = RRect.fromRectAndRadius(
+      closeShadowRect,
+      const Radius.circular(12),
+    );
+    canvas.drawRRect(closeRRect, closeShadowPaint);
   }
 
   /// Draw the container's background (the inside of the tube).
   ///
-  /// This represents the empty space where colors can be poured.
+  /// Enhanced with gradient glass effect for premium game feel.
   ///
-  /// OPTIMIZATION: Uses cached Paint object
+  /// OPTIMIZATION: Creates gradient shader on demand
   void _drawContainerBackground(Canvas canvas, Rect rect) {
     // Draw rounded rectangle for background
     final rrect = RRect.fromRectAndRadius(
@@ -275,7 +315,30 @@ class ContainerPainter extends CustomPainter {
       const Radius.circular(12),
     );
 
-    canvas.drawRRect(rrect, _backgroundPaint);
+    // Create gradient background (glass effect)
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        const Color(0xFF1A1F3A).withOpacity(0.4),
+        const Color(0xFF0F1320).withOpacity(0.6),
+        const Color(0xFF1A1F3A).withOpacity(0.4),
+      ],
+      stops: const [0.0, 0.5, 1.0],
+    );
+
+    final backgroundPaint = Paint()
+      ..shader = gradient.createShader(rect)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawRRect(rrect, backgroundPaint);
+
+    // Add inner glow for depth
+    final innerGlowPaint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.inner, 8);
+
+    canvas.drawRRect(rrect, innerGlowPaint);
   }
 
   /// Draw the color segments inside the container.
@@ -313,7 +376,7 @@ class ContainerPainter extends CustomPainter {
 
   /// Draw a single color segment with gradient.
   ///
-  /// The gradient gives each segment a 3D, liquid-like appearance.
+  /// Enhanced with multiple layers for realistic liquid appearance.
   void _drawColorSegment(Canvas canvas, Rect rect, GameColor color) {
     // Create gradient paint for this color
     final gradient = GameColors.getColorGradient(color);
@@ -322,11 +385,13 @@ class ContainerPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     // Draw the color segment
-    // Using drawRect instead of drawRRect for segments to stack cleanly
     canvas.drawRect(rect, paint);
 
-    // Add a subtle highlight on top edge for liquid effect
+    // Add enhanced glossy highlight on top edge
     _drawSegmentHighlight(canvas, rect);
+
+    // Add glass reflection effect
+    _drawSegmentReflection(canvas, rect);
 
     // Add a subtle separator line between segments
     if (rect.top > 0) {
@@ -334,21 +399,72 @@ class ContainerPainter extends CustomPainter {
     }
   }
 
+  /// Draw glass reflection effect on segment.
+  ///
+  /// Creates a subtle curved reflection for liquid realism.
+  void _drawSegmentReflection(Canvas canvas, Rect rect) {
+    // Create a curved reflection on the left side
+    final reflectionPaint = Paint()
+      ..color = Colors.white.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+
+    final reflectionPath = Path();
+    reflectionPath.moveTo(rect.left, rect.top);
+    reflectionPath.lineTo(rect.left + rect.width * 0.2, rect.top);
+    reflectionPath.quadraticBezierTo(
+      rect.left + rect.width * 0.15,
+      rect.top + rect.height * 0.5,
+      rect.left + rect.width * 0.05,
+      rect.bottom,
+    );
+    reflectionPath.lineTo(rect.left, rect.bottom);
+    reflectionPath.close();
+
+    canvas.drawPath(reflectionPath, reflectionPaint);
+  }
+
   /// Draw a highlight on the top edge of a color segment.
   ///
-  /// This creates a glossy, liquid-like appearance.
-  ///
-  /// OPTIMIZATION: Uses cached Paint object
+  /// Enhanced with gradient for realistic glossy liquid effect.
   void _drawSegmentHighlight(Canvas canvas, Rect rect) {
-    // Draw a thin highlight rect at the top
+    // Draw a gradient highlight at the top for glossy effect
+    final highlightHeight = rect.height * 0.25; // 25% of segment height
     final highlightRect = Rect.fromLTWH(
       rect.left,
       rect.top,
       rect.width,
-      rect.height * 0.15, // 15% of segment height
+      highlightHeight,
     );
 
-    canvas.drawRect(highlightRect, _segmentHighlightPaint);
+    // Create gradient that fades from white to transparent
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        Colors.white.withOpacity(0.35),
+        Colors.white.withOpacity(0.15),
+        Colors.white.withOpacity(0.0),
+      ],
+      stops: const [0.0, 0.5, 1.0],
+    );
+
+    final highlightPaint = Paint()
+      ..shader = gradient.createShader(highlightRect)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawRect(highlightRect, highlightPaint);
+
+    // Add sharp bright line at the very top edge
+    final edgePaint = Paint()
+      ..color = Colors.white.withOpacity(0.4)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(
+      Offset(rect.left, rect.top),
+      Offset(rect.right, rect.top),
+      edgePaint,
+    );
   }
 
   /// Draw a separator line between color segments.
@@ -367,37 +483,98 @@ class ContainerPainter extends CustomPainter {
 
   /// Draw the container outline (the tube structure).
   ///
-  /// This is drawn last so it appears on top of the color segments,
-  /// creating the illusion that the colors are inside the tube.
+  /// Enhanced with multiple layers for premium 3D glass effect.
   ///
-  /// OPTIMIZATION: Uses cached Paint object
+  /// OPTIMIZATION: Uses cached Paint objects
   void _drawContainerOutline(Canvas canvas, Rect rect) {
-    // Draw rounded rectangle for outline
     final rrect = RRect.fromRectAndRadius(
       rect,
       const Radius.circular(12),
     );
 
+    // Layer 1: Outer glow for depth
+    final outerGlowPaint = Paint()
+      ..color = const Color(0xFF2D3561).withOpacity(0.4)
+      ..strokeWidth = 6
+      ..style = PaintingStyle.stroke
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+
+    canvas.drawRRect(rrect, outerGlowPaint);
+
+    // Layer 2: Main outline (dark base)
     canvas.drawRRect(rrect, _outlinePaint);
 
-    // Add inner edge highlight for 3D effect
-    _drawInnerHighlight(canvas, rect);
+    // Layer 3: Inner outline for depth
+    final innerRect = rect.deflate(1.5);
+    final innerRRect = RRect.fromRectAndRadius(
+      innerRect,
+      const Radius.circular(10.5),
+    );
+    canvas.drawRRect(innerRRect, _innerOutlinePaint);
+
+    // Layer 4: Left/top metallic highlight (simulates light reflection)
+    _drawMetallicHighlight(canvas, rect);
+
+    // Layer 5: Edge glow for glass effect
+    _drawEdgeGlow(canvas, rect);
   }
 
-  /// Draw an inner highlight on the container for 3D depth.
+  /// Draw metallic highlight on the left and top edges.
   ///
-  /// This makes the container look like it has thickness and depth.
-  ///
-  /// OPTIMIZATION: Uses cached Paint object
-  void _drawInnerHighlight(Canvas canvas, Rect rect) {
-    // Draw slightly inset rounded rectangle
-    final insetRect = rect.deflate(2);
-    final rrect = RRect.fromRectAndRadius(
-      insetRect,
+  /// Simulates light reflecting off a metallic rim.
+  void _drawMetallicHighlight(Canvas canvas, Rect rect) {
+    // Top-left highlight arc
+    final highlightRect = rect.deflate(2);
+    final highlightRRect = RRect.fromRectAndRadius(
+      highlightRect,
       const Radius.circular(10),
     );
 
-    canvas.drawRRect(rrect, _highlightPaint);
+    // Create gradient for metallic effect
+    final gradient = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Colors.white.withOpacity(0.6),
+        Colors.white.withOpacity(0.3),
+        Colors.white.withOpacity(0.05),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.2, 0.4, 1.0],
+    );
+
+    final metalPaint = Paint()
+      ..shader = gradient.createShader(highlightRect)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+
+    // Only draw the top-left arc (simulating directional light)
+    final path = Path()
+      ..addRRect(highlightRRect);
+
+    canvas.save();
+    // Clip to only show top-left quadrant
+    canvas.clipRect(Rect.fromLTWH(
+      rect.left,
+      rect.top,
+      rect.width * 0.6,
+      rect.height * 0.4,
+    ));
+    canvas.drawPath(path, metalPaint);
+    canvas.restore();
+  }
+
+  /// Draw subtle edge glow for glass effect.
+  ///
+  /// Creates a soft luminous edge around the container.
+  void _drawEdgeGlow(Canvas canvas, Rect rect) {
+    final glowRect = rect.inflate(0.5);
+    final glowRRect = RRect.fromRectAndRadius(
+      glowRect,
+      const Radius.circular(12.5),
+    );
+
+    canvas.drawRRect(glowRRect, _edgeGlowPaint);
   }
 
   /// Draw the selection indicator.

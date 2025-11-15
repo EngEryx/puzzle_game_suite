@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../shared/widgets/game_button.dart';
+import 'package:simple_animations/simple_animations.dart';
 import '../controller/game_controller.dart';
 import '../../levels/controller/level_progress_controller.dart';
+import '../../../core/services/ad_service.dart';
 import 'animations/pour_animator.dart';
 import 'widgets/animated_game_board.dart';
+import 'widgets/animated_game_dialog.dart';
+import 'widgets/animated_star_rating.dart';
 
 /// Main game screen where the puzzle gameplay happens.
 ///
@@ -154,33 +158,31 @@ class _GameScreenState extends ConsumerState<GameScreen>
     _makeMove(fromId, toId);
   }
 
-  /// Execute a move with animation
+  /// Execute a move with smooth animations and spring physics
   void _makeMove(String fromId, String toId) async {
     try {
       final controller = ref.read(gameProvider.notifier);
-      final state = ref.read(gameProvider);
 
-      // Get the source container to determine color and count for animation
-      final fromContainer = state.getContainer(fromId);
-      if (fromContainer == null || fromContainer.isEmpty) {
-        _showError('Invalid source container');
-        return;
+      // STEP 1: Immediate state update (ensures game logic works)
+      controller.makeMove(fromId, toId);
+
+      // STEP 2: Visual feedback with smooth spring animation
+      // Add subtle haptic feedback for premium feel
+      HapticFeedback.selectionClick();
+
+      // Animate a quick scale pulse on both containers for visual feedback
+      // This gives instant responsiveness while state updates
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      // STEP 3: Check for win/loss after animation completes
+      final updatedState = ref.read(gameProvider);
+      if (updatedState.isWon) {
+        // Celebrate win with delay for dramatic effect
+        await Future.delayed(const Duration(milliseconds: 300));
+        _showWinDialog();
+      } else if (updatedState.isLost) {
+        _showLossDialog();
       }
-
-      // Start the animation
-      await controller.animateMove(
-        fromId: fromId,
-        toId: toId,
-        onAnimationComplete: () {
-          // Check for win/loss after animation completes
-          final updatedState = ref.read(gameProvider);
-          if (updatedState.isWon) {
-            _showWinDialog();
-          } else if (updatedState.isLost) {
-            _showLossDialog();
-          }
-        },
-      );
     } catch (e) {
       _showError(e.toString());
     }
@@ -237,37 +239,60 @@ class _GameScreenState extends ConsumerState<GameScreen>
       return;
     }
 
-    // Find first valid move as a simple hint
-    for (final from in gameState.containers) {
-      if (from.isEmpty) continue;
+    // Show dialog to ask user to watch an ad for a hint
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Get a Hint?'),
+        content: const Text('Watch a short video to get a hint.'),
+        actions: [
+          TextButton(
+            onPressed: () => context.pop(),
+            child: const Text('No Thanks'),
+          ),
+          FilledButton(
+            onPressed: () {
+              context.pop();
+              ref.read(adServiceProvider).showRewardedAd(
+                onRewarded: () {
+                  // Find first valid move as a simple hint
+                  for (final from in gameState.containers) {
+                    if (from.isEmpty) continue;
 
-      for (final to in gameState.containers) {
-        if (from.id == to.id) continue;
+                    for (final to in gameState.containers) {
+                      if (from.id == to.id) continue;
 
-        // Check if this is a valid move
-        if (to.isEmpty || (!to.isFull && to.topColor == from.topColor)) {
-          // Show hint
-          _showMessage('Try moving from ${from.id} to ${to.id}');
+                      // Check if this is a valid move
+                      if (to.isEmpty || (!to.isFull && to.topColor == from.topColor)) {
+                        // Show hint
+                        _showMessage('Try moving from ${from.id} to ${to.id}');
 
-          // Highlight the source container
-          setState(() {
-            _selectedContainerId = from.id;
-          });
+                        // Highlight the source container
+                        setState(() {
+                          _selectedContainerId = from.id;
+                        });
 
-          // Clear selection after 2 seconds
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted) {
-              setState(() {
-                _selectedContainerId = null;
-              });
-            }
-          });
-          return;
-        }
-      }
-    }
-
-    _showMessage('No valid moves available');
+                        // Clear selection after 2 seconds
+                        Future.delayed(const Duration(seconds: 2), () {
+                          if (mounted) {
+                            setState(() {
+                              _selectedContainerId = null;
+                            });
+                          }
+                        });
+                        return;
+                      }
+                    }
+                  }
+                  _showMessage('No valid moves available');
+                },
+              );
+            },
+            child: const Text('Watch Ad'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Show win dialog
@@ -287,10 +312,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
       barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false, // Prevent back button from closing dialog
-        child: Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+        child: AnimatedGameDialog(
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -308,10 +330,21 @@ class _GameScreenState extends ConsumerState<GameScreen>
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 // Trophy icon
-                const Icon(
-                  Icons.emoji_events,
-                  color: Colors.amber,
-                  size: 64,
+                PlayAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 1.0, end: 1.1), // Scale up slightly
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: child,
+                    );
+                  },
+                  child: const Icon(
+                    Icons.emoji_events,
+                    color: Colors.amber,
+                    size: 64,
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -327,19 +360,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                 const SizedBox(height: 24),
 
                 // Star rating
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(3, (index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(
-                        index < stars ? Icons.star : Icons.star_border,
-                        color: Colors.amber,
-                        size: 48,
-                      ),
-                    );
-                  }),
-                ),
+                AnimatedStarRating(stars: stars),
                 const SizedBox(height: 20),
 
                 // Moves count
@@ -382,6 +403,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       icon: Icons.home,
                       label: 'Home',
                       onPressed: () {
+                        ref.read(adServiceProvider).showInterstitialAd();
                         context.pop();
                         context.go('/');
                       },
@@ -410,6 +432,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
                       icon: Icons.arrow_forward,
                       label: 'Next',
                       onPressed: () {
+                        ref.read(adServiceProvider).showInterstitialAd();
                         context.pop();
                         context.go('/levels');
                       },
@@ -434,10 +457,7 @@ class _GameScreenState extends ConsumerState<GameScreen>
       barrierDismissible: false,
       builder: (context) => PopScope(
         canPop: false, // Prevent back button from closing dialog
-        child: Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
+        child: AnimatedGameDialog(
           child: Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -455,10 +475,21 @@ class _GameScreenState extends ConsumerState<GameScreen>
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
                 // Icon
-                const Icon(
-                  Icons.timer_off,
-                  color: Colors.white,
-                  size: 64,
+                PlayAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 1.0, end: 1.1), // Scale up slightly
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: child,
+                    );
+                  },
+                  child: const Icon(
+                    Icons.timer_off,
+                    color: Colors.white,
+                    size: 64,
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -776,30 +807,71 @@ class _GameScreenState extends ConsumerState<GameScreen>
   Widget _buildCompactTopBar(state) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 12),
-      child: Text(
-        state.level.name,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.purple.shade400, Colors.blue.shade400],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.4),
+              blurRadius: 12,
+              spreadRadius: 2,
+            ),
+          ],
         ),
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+        child: Text(
+          state.level.name,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                color: Colors.black45,
+                offset: Offset(0, 2),
+                blurRadius: 4,
+              ),
+            ],
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
     );
   }
 
   /// Build floating back button
   Widget _buildBackButton() {
-    return Material(
-      color: Colors.black.withOpacity(0.3),
-      shape: const CircleBorder(),
-      child: InkWell(
-        onTap: () => context.go('/'),
-        customBorder: const CircleBorder(),
-        child: const Padding(
-          padding: EdgeInsets.all(12),
-          child: Icon(Icons.arrow_back, color: Colors.white, size: 20),
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Colors.orange.shade400, Colors.deepOrange.shade600],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.5),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: () => context.go('/'),
+          customBorder: const CircleBorder(),
+          child: const Padding(
+            padding: EdgeInsets.all(12),
+            child: Icon(Icons.arrow_back, color: Colors.white, size: 24),
+          ),
         ),
       ),
     );
@@ -807,28 +879,50 @@ class _GameScreenState extends ConsumerState<GameScreen>
 
   /// Build floating stats button with move count
   Widget _buildStatsButton(state) {
-    return Material(
-      color: Colors.black.withOpacity(0.3),
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: () => _showStatsModal(state),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade400, Colors.indigo.shade600],
+        ),
         borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Icon(Icons.info_outline, color: Colors.white, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                '${state.moveCount}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.5),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: () => _showStatsModal(state),
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(Icons.swap_horiz, color: Colors.white, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  '${state.moveCount}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black45,
+                        offset: Offset(0, 1),
+                        blurRadius: 2,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -873,21 +967,54 @@ class _GameScreenState extends ConsumerState<GameScreen>
     required VoidCallback? onPressed,
     required bool enabled,
   }) {
-    return Material(
-      color: enabled
-          ? Colors.white.withOpacity(0.9)
-          : Colors.white.withOpacity(0.3),
-      shape: const CircleBorder(),
-      elevation: enabled ? 4 : 0,
-      child: InkWell(
-        onTap: onPressed,
-        customBorder: const CircleBorder(),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Icon(
-            icon,
-            color: enabled ? Theme.of(context).colorScheme.primary : Colors.grey,
-            size: 28,
+    // Different gradient colors based on button type
+    List<Color> gradientColors;
+    Color shadowColor;
+
+    if (icon == Icons.undo) {
+      gradientColors = enabled
+          ? [Colors.amber.shade400, Colors.orange.shade600]
+          : [Colors.grey.shade300, Colors.grey.shade400];
+      shadowColor = Colors.amber;
+    } else if (icon == Icons.lightbulb_outline) {
+      gradientColors = enabled
+          ? [Colors.yellow.shade400, Colors.amber.shade600]
+          : [Colors.grey.shade300, Colors.grey.shade400];
+      shadowColor = Colors.yellow;
+    } else {
+      gradientColors = enabled
+          ? [Colors.blue.shade400, Colors.indigo.shade600]
+          : [Colors.grey.shade300, Colors.grey.shade400];
+      shadowColor = Colors.blue;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: gradientColors,
+        ),
+        boxShadow: enabled ? [
+          BoxShadow(
+            color: shadowColor.withOpacity(0.5),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ] : [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onPressed,
+          customBorder: const CircleBorder(),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Icon(
+              icon,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
         ),
       ),
