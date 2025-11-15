@@ -47,6 +47,15 @@ dependencies:
   # Storage
   shared_preferences: ^2.2.2
 
+  # Animation
+  simple_animations: ^5.0.1
+
+  # Ads
+  google_mobile_ads: ^6.0.0
+
+  # In-app purchases
+  in_app_purchase: ^3.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

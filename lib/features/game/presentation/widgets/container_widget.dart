@@ -93,13 +93,13 @@ class ContainerWidget extends StatefulWidget {
   final List<PourAnimation> pourAnimations;
 
   const ContainerWidget({
-    Key? key,
+    super.key,
     required this.container,
     this.onTap,
     this.isSelected = false,
     this.size = const Size(80, 180),
     this.pourAnimations = const [],
-  }) : super(key: key);
+  });
 
   @override
   State<ContainerWidget> createState() => _ContainerWidgetState();
@@ -254,14 +254,14 @@ class SizedContainerWidget extends StatelessWidget {
   final List<PourAnimation> pourAnimations;
 
   const SizedContainerWidget({
-    Key? key,
+    super.key,
     required this.container,
     this.onTap,
     this.isSelected = false,
     this.unitWidth = 20.0,
     this.unitHeight = 45.0,
     this.pourAnimations = const [],
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -291,10 +291,10 @@ class ContainerPreview extends StatelessWidget {
   final double scale;
 
   const ContainerPreview({
-    Key? key,
+    super.key,
     required this.container,
     this.scale = 0.5,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

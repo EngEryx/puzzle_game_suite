@@ -55,6 +55,9 @@ class SettingsService {
   static const String _confirmUndoKey = 'gameplay_confirm_undo';
   static const String _showMovesCountKey = 'gameplay_show_moves_count';
 
+  // Monetization keys
+  static const String _adsRemovedKey = 'monetization_ads_removed';
+
   /// SharedPreferences instance
   late final SharedPreferences _prefs;
 
@@ -113,6 +116,9 @@ class SettingsService {
       autoSave: _prefs.getBool(_autoSaveKey) ?? true,
       confirmUndo: _prefs.getBool(_confirmUndoKey) ?? false,
       showMovesCount: _prefs.getBool(_showMovesCountKey) ?? true,
+
+      // Monetization settings
+      adsRemoved: _prefs.getBool(_adsRemovedKey) ?? false,
     );
   }
 
@@ -247,6 +253,12 @@ class SettingsService {
     await _prefs.setBool(_showMovesCountKey, enabled);
   }
 
+  /// Update ads removed
+  Future<void> updateAdsRemoved(bool enabled) async {
+    _settings = _settings.copyWith(adsRemoved: enabled);
+    await _prefs.setBool(_adsRemovedKey, enabled);
+  }
+
   // ==================== RESET ====================
 
   /// Reset all settings to defaults
@@ -270,6 +282,7 @@ class SettingsService {
     await _prefs.remove(_autoSaveKey);
     await _prefs.remove(_confirmUndoKey);
     await _prefs.remove(_showMovesCountKey);
+    await _prefs.remove(_adsRemovedKey);
 
     print('[SettingsService] Reset to defaults');
   }
@@ -301,6 +314,7 @@ class SettingsService {
       await _prefs.setBool(_autoSaveKey, _settings.autoSave);
       await _prefs.setBool(_confirmUndoKey, _settings.confirmUndo);
       await _prefs.setBool(_showMovesCountKey, _settings.showMovesCount);
+      await _prefs.setBool(_adsRemovedKey, _settings.adsRemoved);
 
       print('[SettingsService] Imported settings successfully');
     } catch (e) {
@@ -337,6 +351,9 @@ class Settings {
   final bool confirmUndo;
   final bool showMovesCount;
 
+  // Monetization settings
+  final bool adsRemoved;
+
   const Settings({
     // Audio defaults
     this.masterVolume = 1.0,
@@ -359,6 +376,9 @@ class Settings {
     this.autoSave = true,
     this.confirmUndo = false,
     this.showMovesCount = true,
+
+    // Monetization defaults
+    this.adsRemoved = false,
   });
 
   /// Create copy with modifications
@@ -379,6 +399,7 @@ class Settings {
     bool? autoSave,
     bool? confirmUndo,
     bool? showMovesCount,
+    bool? adsRemoved,
   }) {
     return Settings(
       masterVolume: masterVolume ?? this.masterVolume,
@@ -397,6 +418,7 @@ class Settings {
       autoSave: autoSave ?? this.autoSave,
       confirmUndo: confirmUndo ?? this.confirmUndo,
       showMovesCount: showMovesCount ?? this.showMovesCount,
+      adsRemoved: adsRemoved ?? this.adsRemoved,
     );
   }
 
@@ -419,6 +441,7 @@ class Settings {
       'autoSave': autoSave,
       'confirmUndo': confirmUndo,
       'showMovesCount': showMovesCount,
+      'adsRemoved': adsRemoved,
     };
   }
 
@@ -441,6 +464,7 @@ class Settings {
       autoSave: json['autoSave'] as bool? ?? true,
       confirmUndo: json['confirmUndo'] as bool? ?? false,
       showMovesCount: json['showMovesCount'] as bool? ?? true,
+      adsRemoved: json['adsRemoved'] as bool? ?? false,
     );
   }
 
@@ -453,7 +477,8 @@ class Settings {
         'animationsEnabled: $animationsEnabled, reducedMotion: $reducedMotion, '
         'brightness: $brightness, hintCooldownSeconds: $hintCooldownSeconds, '
         'showTimer: $showTimer, autoSave: $autoSave, '
-        'confirmUndo: $confirmUndo, showMovesCount: $showMovesCount)';
+        'confirmUndo: $confirmUndo, showMovesCount: $showMovesCount, '
+        'adsRemoved: $adsRemoved)';
   }
 }
 

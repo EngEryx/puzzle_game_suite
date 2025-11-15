@@ -67,10 +67,10 @@ class BounceEffect extends StatefulWidget {
     required BounceController controller,
   }) {
     return BounceEffect(
-      child: child,
       controller: controller,
       spring: AnimationConstants.gentleSpring,
       useScale: true,
+      child: child,
     );
   }
 
@@ -80,10 +80,10 @@ class BounceEffect extends StatefulWidget {
     required BounceController controller,
   }) {
     return BounceEffect(
-      child: child,
       controller: controller,
       spring: AnimationConstants.bouncySpring,
       useScale: true,
+      child: child,
     );
   }
 
@@ -93,10 +93,10 @@ class BounceEffect extends StatefulWidget {
     required BounceController controller,
   }) {
     return BounceEffect(
-      child: child,
       controller: controller,
       spring: AnimationConstants.snappySpring,
       useScale: true,
+      child: child,
     );
   }
 
@@ -106,10 +106,10 @@ class BounceEffect extends StatefulWidget {
     required BounceController controller,
   }) {
     return BounceEffect(
-      child: child,
       controller: controller,
       spring: AnimationConstants.wobblySpring,
       useScale: true,
+      child: child,
     );
   }
 

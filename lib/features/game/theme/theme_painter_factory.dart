@@ -183,7 +183,7 @@ abstract class ThemePainter {
 ///
 /// Renders translucent liquid with wave effects.
 class WaterThemePainter extends ThemePainter {
-  WaterThemePainter(WaterTheme theme) : super(theme);
+  WaterThemePainter(WaterTheme super.theme);
 
   WaterTheme get waterTheme => theme as WaterTheme;
 
@@ -303,7 +303,7 @@ class WaterThemePainter extends ThemePainter {
 ///
 /// Renders solid metallic bolts with threading.
 class NutsAndBoltsThemePainter extends ThemePainter {
-  NutsAndBoltsThemePainter(NutsAndBoltsTheme theme) : super(theme);
+  NutsAndBoltsThemePainter(NutsAndBoltsTheme super.theme);
 
   NutsAndBoltsTheme get nutsTheme => theme as NutsAndBoltsTheme;
 
@@ -411,7 +411,7 @@ class NutsAndBoltsThemePainter extends ThemePainter {
 ///
 /// Renders glossy spherical balls.
 class BallThemePainter extends ThemePainter {
-  BallThemePainter(BallTheme theme) : super(theme);
+  BallThemePainter(BallTheme super.theme);
 
   BallTheme get ballTheme => theme as BallTheme;
 
@@ -540,7 +540,7 @@ class BallThemePainter extends ThemePainter {
 ///
 /// Renders chemical solutions with bubbles and measurements.
 class TestTubeThemePainter extends ThemePainter {
-  TestTubeThemePainter(TestTubeTheme theme) : super(theme);
+  TestTubeThemePainter(TestTubeTheme super.theme);
 
   TestTubeTheme get testTubeTheme => theme as TestTubeTheme;
 

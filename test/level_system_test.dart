@@ -1,4 +1,4 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:puzzle_game_suite/core/models/level.dart';
 import 'package:puzzle_game_suite/core/engine/level_validator.dart';
 import 'package:puzzle_game_suite/core/engine/level_generator.dart';

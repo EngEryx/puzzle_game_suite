@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'audio_manager.dart';
 import 'settings_service.dart';
 import 'dart:math' as math;
@@ -154,18 +153,31 @@ class AudioService {
 
   /// Preload common sounds for instant playback
   Future<void> _preloadSounds() async {
-    // Try to preload, but don't fail if files don't exist
     try {
-      await _audioManager.preloadSound('move', 'sounds/move.mp3');
-      await _audioManager.preloadSound('win_basic', 'sounds/win_basic.mp3');
-      await _audioManager.preloadSound('win_good', 'sounds/win_good.mp3');
-      await _audioManager.preloadSound('win_perfect', 'sounds/win_perfect.mp3');
-      await _audioManager.preloadSound('error', 'sounds/error.mp3');
-      await _audioManager.preloadSound('undo', 'sounds/undo.mp3');
-      await _audioManager.preloadSound('button_tap', 'sounds/button_tap.mp3');
-      await _audioManager.preloadSound('level_start', 'sounds/level_start.mp3');
+      // Preload common sounds (gracefully handles missing files)
+      final soundsToPreload = {
+        'move': 'sounds/pour.mp3',
+        'win_basic': 'sounds/win.mp3',
+        'win_good': 'sounds/win_good.mp3',
+        'win_perfect': 'sounds/win_perfect.mp3',
+        'error': 'sounds/error.mp3',
+        'undo': 'sounds/undo.mp3',
+        'button_tap': 'sounds/click.mp3',
+      };
+
+      for (final entry in soundsToPreload.entries) {
+        try {
+          await _audioManager.preloadSound(entry.key, entry.value);
+        } catch (e) {
+          // Individual sound load failures are logged but don't stop initialization
+          print('[AudioService] Could not preload ${entry.key}: $e');
+        }
+      }
+
+      print('[AudioService] Sound preloading completed');
     } catch (e) {
-      print('[AudioService] Preload warning (files may not exist yet): $e');
+      // Overall preloading error - log and continue
+      print('[AudioService] Preloading warning: $e');
     }
   }
 
@@ -187,15 +199,19 @@ class AudioService {
   void playMove() {
     if (!sfxEnabled || !_initialized) return;
 
-    // Add slight pitch variation for variety (0.95 to 1.05)
-    final pitch = 0.95 + (_random.nextDouble() * 0.1);
-
-    _playSound(
-      'move',
-      assetPath: 'sounds/move.mp3',
-      volume: sfxVolume * masterVolume,
-      pitch: pitch,
-    );
+    try {
+      // Add slight pitch variation for variety (0.95 to 1.05)
+      final pitch = 0.95 + (_random.nextDouble() * 0.1);
+      _playSound(
+        'move',
+        assetPath: 'sounds/pour.mp3',
+        volume: sfxVolume * masterVolume,
+        pitch: pitch,
+      );
+    } catch (e) {
+      // Audio errors should never crash the app
+      print('[AudioService] Error playing move sound: $e');
+    }
   }
 
   /// Play win sound
@@ -220,17 +236,20 @@ class AudioService {
   void playWin({int stars = 1}) {
     if (!sfxEnabled || !_initialized) return;
 
-    // Play appropriate win sound based on stars
-    // Volume slightly louder to emphasize achievement
-    final volume = (sfxVolume * masterVolume * 1.2).clamp(0.0, 1.0);
-
-    switch (stars) {
-      case 3:
-        _playSound('win_perfect', assetPath: 'sounds/win_perfect.mp3', volume: volume);
-      case 2:
-        _playSound('win_good', assetPath: 'sounds/win_good.mp3', volume: volume);
-      default:
-        _playSound('win_basic', assetPath: 'sounds/win_basic.mp3', volume: volume);
+    try {
+      // Play appropriate win sound based on stars
+      // Volume slightly louder to emphasize achievement
+      final volume = (sfxVolume * masterVolume * 1.2).clamp(0.0, 1.0);
+      switch (stars) {
+        case 3:
+          _playSound('win_perfect', assetPath: 'sounds/win_perfect.mp3', volume: volume);
+        case 2:
+          _playSound('win_good', assetPath: 'sounds/win_good.mp3', volume: volume);
+        default:
+          _playSound('win_basic', assetPath: 'sounds/win.mp3', volume: volume);
+      }
+    } catch (e) {
+      print('[AudioService] Error playing win sound: $e');
     }
   }
 
@@ -259,12 +278,16 @@ class AudioService {
   void playError() {
     if (!sfxEnabled || !_initialized) return;
 
-    // Play error sound at reduced volume (less punishing)
-    _playSound(
-      'error',
-      assetPath: 'sounds/error.mp3',
-      volume: sfxVolume * masterVolume * 0.7,
-    );
+    try {
+      // Play error sound at reduced volume (less punishing)
+      _playSound(
+        'error',
+        assetPath: 'sounds/error.mp3',
+        volume: sfxVolume * masterVolume * 0.7,
+      );
+    } catch (e) {
+      print('[AudioService] Error playing error sound: $e');
+    }
   }
 
   /// Play undo sound
@@ -278,13 +301,17 @@ class AudioService {
   void playUndo() {
     if (!sfxEnabled || !_initialized) return;
 
-    // Play undo with slightly lower pitch for "reverse" feel
-    _playSound(
-      'undo',
-      assetPath: 'sounds/undo.mp3',
-      volume: sfxVolume * masterVolume,
-      pitch: 0.9,
-    );
+    try {
+      // Play undo with slightly lower pitch for "reverse" feel
+      _playSound(
+        'undo',
+        assetPath: 'sounds/undo.mp3',
+        volume: sfxVolume * masterVolume,
+        pitch: 0.9,
+      );
+    } catch (e) {
+      print('[AudioService] Error playing undo sound: $e');
+    }
   }
 
   /// Play button tap sound
@@ -298,12 +325,16 @@ class AudioService {
   void playButtonTap() {
     if (!sfxEnabled || !_initialized) return;
 
-    // Play at reduced volume for subtle feedback
-    _playSound(
-      'button_tap',
-      assetPath: 'sounds/button_tap.mp3',
-      volume: sfxVolume * masterVolume * 0.5,
-    );
+    try {
+      // Play at reduced volume for subtle feedback
+      _playSound(
+        'button_tap',
+        assetPath: 'sounds/click.mp3',
+        volume: sfxVolume * masterVolume * 0.5,
+      );
+    } catch (e) {
+      print('[AudioService] Error playing button tap sound: $e');
+    }
   }
 
   /// Play level start sound
@@ -317,11 +348,13 @@ class AudioService {
   void playLevelStart() {
     if (!sfxEnabled || !_initialized) return;
 
-    _playSound(
-      'level_start',
-      assetPath: 'sounds/level_start.mp3',
-      volume: sfxVolume * masterVolume,
-    );
+    // TODO: Add level_start.mp3 sound file
+    // For now, disabled as the file doesn't exist yet
+    // _playSound(
+    //   'level_start',
+    //   assetPath: 'sounds/level_start.mp3',
+    //   volume: sfxVolume * masterVolume,
+    // );
   }
 
   // ==================== MUSIC ====================
@@ -343,13 +376,18 @@ class AudioService {
   void startBackgroundMusic() {
     if (!musicEnabled || !_initialized) return;
 
-    _playMusic(
-      'background',
-      assetPath: 'sounds/background.mp3',
-      volume: musicVolume * masterVolume,
-      loop: true,
-      fadeIn: const Duration(milliseconds: 1000),
-    );
+    try {
+      // Note: background.mp3 doesn't exist yet - will fail gracefully
+      _playMusic(
+        'background',
+        assetPath: 'sounds/background.mp3',
+        volume: musicVolume * masterVolume,
+        loop: true,
+        fadeIn: const Duration(milliseconds: 1000),
+      );
+    } catch (e) {
+      print('[AudioService] Background music not available: $e');
+    }
   }
 
   /// Stop background music

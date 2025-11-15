@@ -1,5 +1,4 @@
 import 'container.dart';
-import 'move.dart';
 
 /// Validates moves and checks game win conditions.
 ///
@@ -316,6 +315,59 @@ class MoveValidator {
     return allContainers
         .where((to) => canMove(from, to))
         .toList();
+  }
+
+  /// Alias for getMoveCount - for backward compatibility
+  ///
+  /// This is an alias method that calls getMoveCount().
+  /// Provided for compatibility with existing code that uses
+  /// the calculateMoveAmount naming.
+  static int calculateMoveAmount(Container from, Container to) {
+    return getMoveCount(from, to);
+  }
+
+  /// Validate a move and return an error message if invalid.
+  ///
+  /// Returns null if the move is valid, or an error message string if invalid.
+  ///
+  /// This is a convenience method that wraps canMove() and provides
+  /// user-friendly error messages.
+  ///
+  /// Parameters:
+  /// - [from]: The source container
+  /// - [to]: The destination container
+  ///
+  /// Returns:
+  /// - null if move is valid
+  /// - Error message string if move is invalid
+  static String? validateMove(Container from, Container to) {
+    // Rule 1: Can't pour from empty container
+    if (from.isEmpty) {
+      return 'Cannot pour from an empty container';
+    }
+
+    // Rule 2: Can't pour into full container
+    if (to.isFull) {
+      return 'Cannot pour into a full container';
+    }
+
+    // Rule 3: Can't move to same container
+    if (from.id == to.id) {
+      return 'Cannot pour into the same container';
+    }
+
+    // Rule 4: Colors must match OR destination must be empty
+    if (!to.isEmpty) {
+      final fromColor = from.topColor;
+      final toColor = to.topColor;
+
+      if (fromColor != toColor) {
+        return 'Colors do not match';
+      }
+    }
+
+    // All rules passed - move is valid
+    return null;
   }
 
   /// Check if any moves are possible in the current game state.
