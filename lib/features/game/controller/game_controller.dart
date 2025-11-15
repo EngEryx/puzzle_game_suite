@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/engine/container.dart';
 import '../../../core/engine/game_state.dart';
 import '../../../core/models/level.dart';
-import '../presentation/animations/pour_animation.dart';
 import '../../../core/services/audio_service.dart';
+import '../../levels/controller/level_progress_controller.dart';
 
 /// Game controller using Riverpod state management.
 ///
@@ -103,25 +102,20 @@ class GameController extends StateNotifier<GameState> {
   /// Audio service for sound effects
   final AudioService? _audioService;
 
-  /// Current active animation (if any)
-  PourAnimation? _currentAnimation;
-
-  /// Animation completion callback
-  VoidCallback? _animationCompleteCallback;
-
-  /// Pending move to execute after animation
-  _PendingMove? _pendingMove;
+  /// Progress controller for saving level completion
+  final LevelProgressController? _progressController;
 
   /// Create controller with initial level
   ///
   /// StateNotifier requires initial state
   /// We create it from the level
-  GameController(Level level, {AudioService? audioService})
-      : _audioService = audioService,
+  GameController(
+    Level level, {
+    AudioService? audioService,
+    LevelProgressController? progressController,
+  })  : _audioService = audioService,
+        _progressController = progressController,
         super(GameState.fromLevel(level));
-
-  /// Get current animation (if any)
-  PourAnimation? get currentAnimation => _currentAnimation;
 
   // ==================== PUBLIC API ====================
   // These methods are called by the UI
@@ -247,9 +241,6 @@ class GameController extends StateNotifier<GameState> {
   /// This completely replaces current state
   void loadLevel(Level level) {
     state = GameState.fromLevel(level);
-    _currentAnimation = null;
-    _animationCompleteCallback = null;
-    _pendingMove = null;
 
     // Play level start sound
     _audioService?.playLevelStart();
@@ -283,15 +274,9 @@ class GameController extends StateNotifier<GameState> {
     bool autoApply = false,
   }) async {
     if (autoApply) {
-      // Apply the hint move with animation
-      await animateMove(
-        fromId: fromId,
-        toId: toId,
-        onAnimationComplete: () {
-          // Hint was applied successfully
-          _logHintApplied(fromId, toId);
-        },
-      );
+      // Apply the hint move
+      makeMove(fromId, toId);
+      _logHintApplied(fromId, toId);
     } else {
       // Just log that hint was shown
       // Actual highlighting is handled by HintOverlay widget
@@ -328,71 +313,8 @@ class GameController extends StateNotifier<GameState> {
   ///   onAnimationComplete: () => print('Animation done!'),
   /// );
   /// ```
-  Future<void> animateMove({
-    required String fromId,
-    required String toId,
-    bool queueIfAnimating = true,
-    VoidCallback? onAnimationComplete,
-  }) async {
-    // Don't allow moves if game is over
-    if (state.isGameOver) {
-      throw StateError('Cannot make moves: game is over');
-    }
-
-    // Check if animation is already running
-    if (_currentAnimation != null) {
-      if (queueIfAnimating) {
-        // Queue this move for later
-        _pendingMove = _PendingMove(
-          fromId: fromId,
-          toId: toId,
-          callback: onAnimationComplete,
-        );
-        return;
-      } else {
-        // Cancel current animation and start new one
-        _cancelAnimation();
-      }
-    }
-
-    // Validate move
-    final fromContainer = state.getContainer(fromId);
-    final toContainer = state.getContainer(toId);
-
-    if (fromContainer == null || toContainer == null) {
-      throw ArgumentError('Container not found');
-    }
-
-    final error = MoveValidator.validateMove(fromContainer, toContainer);
-    if (error != null) {
-      throw ArgumentError('Invalid move: $error');
-    }
-
-    // Get animation details
-    final count = _calculateTransferCount(fromContainer, toContainer);
-
-    // Create animation
-    _currentAnimation = PourAnimationConfig.createNormal(
-      fromContainerId: fromId,
-      toContainerId: toId,
-      color: fromContainer.topColor!,
-      count: count,
-    );
-
-    _animationCompleteCallback = onAnimationComplete;
-
-    // Notify listeners to start animation
-    state = state; // Trigger rebuild
-
-    // Wait for animation duration
-    await Future.delayed(Duration(milliseconds: _currentAnimation!.durationMs));
-
-    // Apply the actual move
-    _completeAnimation();
-  }
-
   /// Calculate how many units will be transferred
-  int _calculateTransferCount(Container from, Container to) {
+  int calculateTransferCount(Container from, Container to) {
     int count = from.topColorCount;
 
     // Limit by available space in target
@@ -403,69 +325,6 @@ class GameController extends StateNotifier<GameState> {
 
     return count;
   }
-
-  /// Complete the current animation and apply the move
-  void _completeAnimation() {
-    if (_currentAnimation == null) return;
-
-    final animation = _currentAnimation!;
-
-    // Apply the move to game state
-    try {
-      final newState = state.applyMove(
-        fromId: animation.fromContainerId,
-        toId: animation.toContainerId,
-      );
-
-      state = newState;
-
-      // Log the move
-      _logMove(animation.fromContainerId, animation.toContainerId, newState);
-
-      // Check for win/loss
-      if (newState.isWon) {
-        _onGameWon();
-      } else if (newState.isLost) {
-        _onGameLost();
-      }
-    } catch (e) {
-      // Handle error but don't crash
-      _logError('Failed to apply move after animation: $e');
-    }
-
-    // Invoke callback
-    _animationCompleteCallback?.call();
-
-    // Clear animation state
-    _currentAnimation = null;
-    _animationCompleteCallback = null;
-
-    // Process pending move if any
-    if (_pendingMove != null) {
-      final pending = _pendingMove!;
-      _pendingMove = null;
-
-      // Start the pending move
-      animateMove(
-        fromId: pending.fromId,
-        toId: pending.toId,
-        onAnimationComplete: pending.callback,
-      );
-    }
-  }
-
-  /// Cancel current animation
-  void _cancelAnimation() {
-    _currentAnimation = null;
-    _animationCompleteCallback = null;
-    _pendingMove = null;
-  }
-
-  /// Check if a move is currently being animated
-  bool get isAnimating => _currentAnimation != null;
-
-  /// Check if there's a pending move
-  bool get hasPendingMove => _pendingMove != null;
 
   // ==================== HELPER METHODS ====================
   // These are private implementation details
@@ -581,6 +440,13 @@ class GameController extends StateNotifier<GameState> {
     // Play win sound with appropriate star level
     _audioService?.playWin(stars: stars);
 
+    // Save level progress and unlock next level
+    _progressController?.completeLevel(
+      levelId: state.level.id,
+      moves: state.moveCount,
+      stars: stars,
+    );
+
     // print('🎉 Won! Stars: $stars, Moves: ${state.moveCount}');
   }
 
@@ -646,8 +512,15 @@ final gameProvider = StateNotifierProvider<GameController, GameState>((ref) {
   // Get audio service (dependency)
   final audioService = ref.watch(audioServiceProvider);
 
-  // Create controller with level and audio service
-  return GameController(level, audioService: audioService);
+  // Get progress controller (dependency)
+  final progressController = ref.watch(levelProgressProvider.notifier);
+
+  // Create controller with level, audio service, and progress controller
+  return GameController(
+    level,
+    audioService: audioService,
+    progressController: progressController,
+  );
 });
 
 /// Provider for the current level
@@ -671,8 +544,9 @@ final gameProvider = StateNotifierProvider<GameController, GameState>((ref) {
 /// - Progress tracker (last played level)
 /// - Deep link (shared level)
 final currentLevelProvider = StateProvider<Level>((ref) {
-  // Default: tutorial level
-  return Level.tutorial(id: 'tutorial_1');
+  // Default to the first level
+  final level = ref.watch(levelByIdProvider('level_1'));
+  return level ?? Level.tutorial(id: 'tutorial_fallback');
 });
 
 /// Provider for move count (derived state)
@@ -778,22 +652,6 @@ final currentStarsProvider = Provider<int>((ref) {
   return state.currentStars;
 });
 
-/// Provider for current animation
-///
-/// Returns the active pour animation if one is running
-final currentAnimationProvider = Provider<PourAnimation?>((ref) {
-  final controller = ref.watch(gameProvider.notifier);
-  return controller.currentAnimation;
-});
-
-/// Provider for animation status
-///
-/// Returns true if a move is currently being animated
-final isAnimatingProvider = Provider<bool>((ref) {
-  final controller = ref.watch(gameProvider.notifier);
-  return controller.isAnimating;
-});
-
 // ═══════════════════════════════════════════════════════════════════
 // TESTING UTILITIES
 // ═══════════════════════════════════════════════════════════════════
@@ -818,19 +676,6 @@ final isAnimatingProvider = Provider<bool>((ref) {
 ///   // Test UI with mock data
 /// });
 /// ```
-
-/// Internal class for queuing pending moves during animation
-class _PendingMove {
-  final String fromId;
-  final String toId;
-  final VoidCallback? callback;
-
-  _PendingMove({
-    required this.fromId,
-    required this.toId,
-    this.callback,
-  });
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // ARCHITECTURE SUMMARY
