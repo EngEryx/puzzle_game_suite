@@ -6,6 +6,7 @@ import '../../core/models/game_theme.dart';
 import 'controller/settings_controller.dart';
 import 'widgets/setting_tile.dart';
 import 'widgets/theme_selector.dart';
+import '../../core/services/iap_service.dart';
 
 /// Comprehensive settings screen with persistence
 ///
@@ -233,6 +234,31 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'Display number of moves taken',
             value: settings.showMovesCount,
             onChanged: (_) => controller.toggleShowMovesCount(),
+          ),
+
+          const SizedBox(height: 16.0),
+
+          // ==================== STORE SECTION ====================
+          const SettingSection(
+            title: 'Store',
+            icon: Icons.store,
+            subtitle: 'In-app purchases and rewards',
+          ),
+
+          SettingTile.navigation(
+            icon: Icons.ads_click,
+            title: 'Remove Ads',
+            subtitle: 'Enjoy an ad-free experience',
+            onTap: () => _showStoreDialog(context, ref, 'remove_ads'),
+          ),
+
+          const SettingDivider(),
+
+          SettingTile.navigation(
+            icon: Icons.monetization_on,
+            title: 'Buy Coins',
+            subtitle: 'Get more coins for hints',
+            onTap: () => _showStoreDialog(context, ref, 'coins_100'),
           ),
 
           const SizedBox(height: 16.0),
@@ -554,5 +580,56 @@ class SettingsScreen extends ConsumerWidget {
     // - iOS: Launch App Store
     // - Android: Launch Play Store
     // - Web: Show feedback form
+  }
+
+  void _showStoreDialog(BuildContext context, WidgetRef ref, String productId) {
+    final iapService = ref.read(iapServiceProvider);
+    showDialog(
+      context: context,
+      builder: (context) {
+        return FutureBuilder(
+          future: iapService.loadProducts(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return AlertDialog(
+                title: const Text('Error'),
+                content: const Text('Failed to load products.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => context.pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              );
+            }
+            final products = snapshot.data ?? [];
+            final product = products.firstWhere(
+              (p) => p.id == productId,
+              orElse: () => products.first,
+            );
+            return AlertDialog(
+              title: Text(product.title),
+              content: Text(product.description),
+              actions: [
+                TextButton(
+                  onPressed: () => context.pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    iapService.buyProduct(product);
+                    context.pop();
+                  },
+                  child: Text(product.price),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }

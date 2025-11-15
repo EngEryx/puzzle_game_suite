@@ -17,7 +17,7 @@ import 'pour_animator.dart';
 
 /// Example game screen with animation support
 class AnimatedGameScreenExample extends ConsumerStatefulWidget {
-  const AnimatedGameScreenExample({Key? key}) : super(key: key);
+  const AnimatedGameScreenExample({super.key});
 
   @override
   ConsumerState<AnimatedGameScreenExample> createState() =>
@@ -432,9 +432,9 @@ class ConfigurableAnimationExample extends ConsumerStatefulWidget {
   final GameMode mode;
 
   const ConfigurableAnimationExample({
-    Key? key,
+    super.key,
     required this.mode,
-  }) : super(key: key);
+  });
 
   @override
   ConsumerState<ConfigurableAnimationExample> createState() =>

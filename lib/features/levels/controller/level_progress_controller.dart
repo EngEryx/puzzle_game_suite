@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/progress_service.dart';
 import '../../../core/models/level.dart';
+import '../../../core/models/game_color.dart';
+import '../../../core/engine/container.dart' as game_engine;
 
 /// Controller for managing level progress using Riverpod
 ///
@@ -177,14 +179,6 @@ class ProgressState {
   final int? totalStars;
   final int? completedCount;
   final String? errorMessage;
-
-  const ProgressState._({
-    required this.type,
-    this.progress,
-    this.totalStars,
-    this.completedCount,
-    this.errorMessage,
-  });
 
   const ProgressState.loading()
       : type = ProgressStateType.loading,
@@ -460,19 +454,44 @@ _DifficultyParams _getDifficultyParams(Difficulty difficulty) {
   }
 }
 
-/// Generate containers for a level (placeholder)
-List<Container> _generateContainers(_DifficultyParams params) {
-  // This is a simplified version
-  // In production, use proper procedural generation with:
-  // - Solvability checking
-  // - Difficulty validation
-  // - Unique layouts
+/// Generate containers for a level
+List<game_engine.Container> _generateContainers(_DifficultyParams params) {
+  final containers = <game_engine.Container>[];
 
-  final containers = <Container>[];
+  // Available colors based on difficulty
+  final availableColors = [
+    GameColor.red,
+    GameColor.blue,
+    GameColor.green,
+    GameColor.yellow,
+    GameColor.purple,
+    GameColor.orange,
+  ].take(params.colors).toList();
 
-  // For now, just create empty containers as placeholders
-  for (int i = 0; i < params.containers; i++) {
-    containers.add(Container.empty(
+  // Calculate filled containers (leaving 2 empty for helpers)
+  final filledContainers = params.containers - 2;
+
+  // Create filled containers with mixed colors
+  for (int i = 0; i < filledContainers; i++) {
+    final colors = <GameColor>[];
+
+    // Fill each container to capacity with mixed colors
+    for (int j = 0; j < params.capacity; j++) {
+      // Distribute colors evenly across containers
+      final colorIndex = (i + j) % availableColors.length;
+      colors.add(availableColors[colorIndex]);
+    }
+
+    containers.add(game_engine.Container.withColors(
+      id: 'container_$i',
+      colors: colors,
+      capacity: params.capacity,
+    ));
+  }
+
+  // Add 2 empty helper containers
+  for (int i = filledContainers; i < params.containers; i++) {
+    containers.add(game_engine.Container.empty(
       id: 'container_$i',
       capacity: params.capacity,
     ));

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../constants/animation_constants.dart';
 
 /// Subtle animated background with theme-specific patterns.
 ///
