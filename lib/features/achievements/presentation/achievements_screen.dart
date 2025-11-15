@@ -212,8 +212,38 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          // Stats button - gamified floating button
           Container(
-            margin: const EdgeInsets.all(8),
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [Colors.amber.shade400, Colors.orange.shade600],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.amber.withOpacity(0.6),
+                  blurRadius: 15,
+                  spreadRadius: 3,
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: () => _showStatsPopup(context, stats),
+                customBorder: const CircleBorder(),
+                child: const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Icon(Icons.bar_chart_rounded, color: Colors.white, size: 26),
+                ),
+              ),
+            ),
+          ),
+          // Filter button
+          Container(
+            margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
@@ -240,11 +270,11 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
                 },
                 customBorder: const CircleBorder(),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   child: Icon(
                     _showOnlyUnlocked ? Icons.lock_open : Icons.lock_outline,
                     color: Colors.white,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
               ),
@@ -252,76 +282,46 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(160),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                // Gamified stats - colorful cards
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: <Widget>[
-                      _buildGameStat(
-                        '${stats.unlocked}/${stats.total}',
-                        'Unlocked',
-                        Icons.lock_open_rounded,
-                        Colors.green,
-                      ),
-                      _buildGameStat(
-                        '${stats.points}',
-                        'Points',
-                        Icons.stars_rounded,
-                        Colors.amber,
-                      ),
-                      _buildGameStat(
-                        '${(stats.unlocked / stats.total * 100).toStringAsFixed(0)}%',
-                        'Complete',
-                        Icons.trending_up_rounded,
-                        Colors.blue,
-                      ),
+          preferredSize: const Size.fromHeight(100),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              // Search bar - gamified
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: _buildSearchBar(),
+              ),
+
+              // Category tabs - gamified
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.deepPurple.shade800.withOpacity(0.5),
+                      Colors.purple.shade700.withOpacity(0.5),
                     ],
                   ),
                 ),
-
-                // Search bar - gamified
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: _buildSearchBar(),
-                ),
-
-                // Category tabs - gamified
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.deepPurple.shade800.withOpacity(0.5),
-                        Colors.purple.shade700.withOpacity(0.5),
-                      ],
-                    ),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  indicatorColor: Colors.amber.shade300,
+                  indicatorWeight: 3,
+                  labelColor: Colors.amber.shade200,
+                  unselectedLabelColor: Colors.white70,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    indicatorColor: Colors.amber.shade300,
-                    indicatorWeight: 3,
-                    labelColor: Colors.amber.shade200,
-                    unselectedLabelColor: Colors.white70,
-                    labelStyle: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    tabs: [
-                      const Tab(text: 'All'),
-                      ...AchievementType.values.map((type) {
-                        return Tab(text: _formatTypeName(type));
-                      }),
-                    ],
-                  ),
+                  tabs: [
+                    const Tab(text: 'All'),
+                    ...AchievementType.values.map((type) {
+                      return Tab(text: _formatTypeName(type));
+                    }),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -631,7 +631,7 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
     });
 
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 180, left: 8, right: 8, bottom: 16),
+      padding: const EdgeInsets.only(top: 120, left: 8, right: 8, bottom: 16),
       itemCount: sortedAchievements.length,
       itemBuilder: (context, index) {
         final achievement = sortedAchievements[index];
@@ -998,5 +998,242 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen>
   /// Format full date
   String _formatFullDate(DateTime date) {
     return '${date.month}/${date.day}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Show stats popup - gamified modal
+  void _showStatsPopup(BuildContext context, AchievementStats stats) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.purple.shade700,
+                Colors.deepPurple.shade900,
+              ],
+            ),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.amber.shade300.withOpacity(0.5), width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.amber.withOpacity(0.4),
+                blurRadius: 30,
+                spreadRadius: 5,
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title with icon
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.amber.shade400, Colors.orange.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.amber.withOpacity(0.5),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bar_chart_rounded, color: Colors.white, size: 28),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Your Stats',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black45,
+                              offset: Offset(0, 2),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Stats cards - big and gamified
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildBigStatCard(
+                        '${stats.unlocked}/${stats.total}',
+                        'Unlocked',
+                        Icons.lock_open_rounded,
+                        Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildBigStatCard(
+                        '${stats.points}',
+                        'Points',
+                        Icons.stars_rounded,
+                        Colors.amber,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Progress card
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.blue.shade600.withOpacity(0.4), Colors.indigo.shade700.withOpacity(0.4)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.blue.shade300.withOpacity(0.5), width: 2),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.trending_up_rounded, color: Colors.blue.shade200, size: 32),
+                          const SizedBox(width: 12),
+                          Text(
+                            '${(stats.unlocked / stats.total * 100).toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Completion',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          value: stats.unlocked / stats.total,
+                          minHeight: 12,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          valueColor: AlwaysStoppedAnimation(Colors.blue.shade300),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.purple.shade500, Colors.purple.shade700],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.purple.withOpacity(0.5),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        onTap: () => Navigator.of(context).pop(),
+                        borderRadius: BorderRadius.circular(16),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          child: Center(
+                            child: Text(
+                              'Close',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build big stat card for popup
+  Widget _buildBigStatCard(String value, String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.4), color.withOpacity(0.2)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.5), width: 2),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 40),
+          const SizedBox(height: 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
